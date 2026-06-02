@@ -30,7 +30,14 @@ cp .env.example .env.local
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000` 접속.
+기본 포트는 `3010`이다.
+브라우저에서 `http://localhost:3010` 접속.
+
+다른 포트로 열고 싶으면:
+
+```bash
+PORT=3020 npm run dev
+```
 
 ## 환경변수
 
