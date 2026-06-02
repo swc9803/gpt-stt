@@ -35,7 +35,7 @@ steps:
       - --concurrency
       - ${_CONCURRENCY}
       - --set-env-vars
-      - CHAT_PROVIDER=hermes-codex,HERMES_CODEX_MODEL=${_CODEX_MODEL},HERMES_CODEX_TOOLSETS=safe,HERMES_CODEX_TIMEOUT_MS=90000
+      - CHAT_PROVIDER=hermes-codex,HERMES_CODEX_MODEL=${_CODEX_MODEL},HERMES_CODEX_TOOLSETS=safe,HERMES_CODEX_TIMEOUT_MS=90000,OPENAI_TTS_MODEL=${_TTS_MODEL},OPENAI_TTS_VOICE=${_TTS_VOICE},ENABLE_SERVER_TTS=${_ENABLE_SERVER_TTS}
       - --update-secrets
       - HERMES_AUTH_JSON_B64=hermes-auth-json-b64:latest,OPENAI_API_KEY=openai-api-key:latest
 
@@ -43,6 +43,9 @@ substitutions:
   _SERVICE: gpt-stt
   _REGION: asia-northeast3
   _CODEX_MODEL: gpt-5.5
+  _TTS_MODEL: gpt-4o-mini-tts
+  _TTS_VOICE: alloy
+  _ENABLE_SERVER_TTS: 'false'
   _MEMORY: 1Gi
   _CPU: '1'
   _TIMEOUT: 120s
