@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '부모님 GPT 음성비서',
-  description: '누르고 말하면 GPT가 쉽게 답하고 읽어주는 PWA',
+  title: 'gpt-stt',
+  description: '누르고 말씀하시면 gpt-stt가 쉽게 답하고 읽어드리는 PWA',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'GPT 음성비서',
+    title: 'gpt-stt',
   },
   icons: {
     icon: '/icons/icon.svg',

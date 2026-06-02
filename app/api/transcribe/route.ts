@@ -8,10 +8,10 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const audio = form.get('audio');
     if (!(audio instanceof File)) {
-      return NextResponse.json({ error: 'audio 파일이 없어.' }, { status: 400 });
+      return NextResponse.json({ error: 'audio 파일이 없습니다.' }, { status: 400 });
     }
     if (audio.size > 15 * 1024 * 1024) {
-      return NextResponse.json({ error: '음성 파일이 너무 커. 짧게 말해줘.' }, { status: 413 });
+      return NextResponse.json({ error: '음성 파일이 너무 큽니다. 짧게 말씀해 주세요.' }, { status: 413 });
     }
 
     const openai = getOpenAI();
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ text: result.text || '' });
   } catch (err) {
-    const message = err instanceof Error ? err.message : '음성 인식 서버 오류가 났어.';
+    const message = err instanceof Error ? err.message : '음성 인식 서버 오류가 발생했습니다.';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

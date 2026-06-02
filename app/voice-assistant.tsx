@@ -6,11 +6,11 @@ type Step = 'idle' | 'recording' | 'transcribing' | 'thinking' | 'speaking';
 
 function statusText(step: Step) {
   switch (step) {
-    case 'recording': return '듣는 중이야. 다 말했으면 버튼을 한 번 더 눌러.';
-    case 'transcribing': return '말한 내용을 글자로 바꾸는 중.';
-    case 'thinking': return '답변 생각 중.';
-    case 'speaking': return '읽어주는 중.';
-    default: return '큰 버튼을 누르고 말하면 돼.';
+    case 'recording': return '듣는 중입니다. 말씀을 마치셨으면 버튼을 한 번 더 눌러 주세요.';
+    case 'transcribing': return '말씀하신 내용을 글자로 바꾸는 중입니다.';
+    case 'thinking': return '답변을 생각하는 중입니다.';
+    case 'speaking': return '답변을 읽어드리는 중입니다.';
+    default: return '';
   }
 }
 
@@ -21,7 +21,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.error || '요청 처리에 실패했어.');
+  if (!response.ok) throw new Error(data?.error || '요청 처리에 실패했습니다.');
   return data as T;
 }
 
@@ -64,7 +64,7 @@ export default function VoiceAssistant() {
     window.speechSynthesis?.cancel();
 
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError('이 브라우저는 녹음을 지원하지 않아. Chrome이나 Safari 최신 버전으로 열어봐.');
+      setError('이 브라우저는 녹음을 지원하지 않습니다. Chrome이나 Safari 최신 버전으로 열어 주세요.');
       return;
     }
 
@@ -86,7 +86,7 @@ export default function VoiceAssistant() {
       recorder.start();
       setStep('recording');
     } catch {
-      setError('마이크 권한이 필요해. 브라우저 주소창 설정에서 마이크를 허용해줘.');
+      setError('마이크 권한이 필요합니다. 브라우저 주소창 설정에서 마이크를 허용해 주세요.');
       setStep('idle');
     }
   }
@@ -101,7 +101,7 @@ export default function VoiceAssistant() {
     setStep('transcribing');
     try {
       const audio = new Blob(chunksRef.current, { type: mimeType });
-      if (audio.size < 1024) throw new Error('녹음이 너무 짧아. 버튼을 누르고 조금 더 길게 말해봐.');
+      if (audio.size < 1024) throw new Error('녹음이 너무 짧습니다. 버튼을 누르고 조금 더 길게 말씀해 주세요.');
 
       const form = new FormData();
       const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
@@ -109,10 +109,10 @@ export default function VoiceAssistant() {
 
       const transcribeResponse = await fetch('/api/transcribe', { method: 'POST', body: form });
       const transcribeData = await transcribeResponse.json().catch(() => ({}));
-      if (!transcribeResponse.ok) throw new Error(transcribeData?.error || '음성 인식에 실패했어.');
+      if (!transcribeResponse.ok) throw new Error(transcribeData?.error || '음성 인식에 실패했습니다.');
 
       const text = String(transcribeData.text || '').trim();
-      if (!text) throw new Error('말소리를 인식하지 못했어. 다시 한 번 또렷하게 말해줘.');
+      if (!text) throw new Error('말소리를 인식하지 못했습니다. 다시 한 번 또렷하게 말씀해 주세요.');
       setTranscript(text);
 
       setStep('thinking');
@@ -120,7 +120,7 @@ export default function VoiceAssistant() {
       setAnswer(chat.answer);
       speak(chat.answer);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '처리 중 문제가 생겼어.');
+      setError(err instanceof Error ? err.message : '처리 중 문제가 발생했습니다.');
       setStep('idle');
     } finally {
       recorderRef.current = null;
@@ -138,43 +138,36 @@ export default function VoiceAssistant() {
     <main className="main">
       <section className="shell">
         <header className="header">
-          <h1>GPT 음성비서</h1>
-          <p>누르고 말하면, 쉽게 답하고 읽어줘.</p>
+          <h1>gpt-stt</h1>
         </header>
 
-        <section className="card">
+        <section className="card controlCard">
           <button
             className={`micButton ${step === 'recording' ? 'recording' : ''}`}
             onClick={onMainButtonClick}
             disabled={!['idle', 'recording'].includes(step)}
             aria-label={step === 'recording' ? '말하기 끝내기' : '말하기 시작'}
           >
-            <span className="micIcon" aria-hidden="true">🎙️</span>
             <span className="micLabel">{step === 'recording' ? '끝' : '말하기'}</span>
-            <span className="micHint">{step === 'recording' ? '한 번 더 누르기' : '크게 누르기'}</span>
           </button>
-          <div className="status" role="status">{statusText(step)}</div>
+          {statusText(step) ? <div className="status" role="status">{statusText(step)}</div> : null}
         </section>
 
         {error ? <div className="error">{error}</div> : null}
 
         <section className="panel card">
-          <h2>내가 말한 내용</h2>
-          <div className={`bubble ${transcript ? '' : 'empty'}`}>{transcript || '아직 없어.'}</div>
+          <h2>질문</h2>
+          <div className={`bubble ${transcript ? '' : 'empty'}`}>{transcript || '아직 없습니다.'}</div>
         </section>
 
         <section className="panel card">
           <h2>답변</h2>
-          <div className={`bubble ${answer ? '' : 'empty'}`}>{answer || '답변이 여기에 나와.'}</div>
+          <div className={`bubble ${answer ? '' : 'empty'}`}>{answer || '답변이 여기에 표시됩니다.'}</div>
           <div className="actions">
             <button className="actionButton" onClick={() => speak(answer)} disabled={!answer || step === 'recording'}>다시 듣기</button>
             <button className="actionButton secondary" onClick={() => { setTranscript(''); setAnswer(''); setError(''); window.speechSynthesis?.cancel(); setStep('idle'); }}>초기화</button>
           </div>
         </section>
-
-        <footer className="footer">
-          부모님용으로 짧고 쉽게 답하도록 설정돼 있어. 의료, 금융, 법률 결정은 가족이나 전문가에게 다시 확인해야 해.
-        </footer>
       </section>
     </main>
   );

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start -p ${PORT:-3010}",
     "lint": "next lint",
-    "models": "node scripts/list-models.mjs"
+    "models": "node scripts/list-models.mjs",
+    "deploy:cloudrun": "gcloud builds submit --config cloudbuild.yaml && gcloud run services add-iam-policy-binding gpt-stt --region asia-northeast3 --member=allUsers --role=roles/run.invoker --quiet",
+    "deploy:firebase": "firebase deploy --only hosting"
   },
   "dependencies": {
     "@types/node": "latest",
