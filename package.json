@@ -1,1 +1,22 @@
-{"name":"gpt-stt","version":"0.1.0","private":true,"scripts":{"dev":"next dev -p ${PORT:-3010}","build":"next build","start":"next start -p ${PORT:-3010}","lint":"next lint"},"dependencies":{"@types/node":"latest","@types/react":"latest","@types/react-dom":"latest","next":"latest","openai":"latest","react":"latest","react-dom":"latest","typescript":"latest"}}
+{
+  "name": "gpt-stt",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p ${PORT:-3010}",
+    "build": "next build",
+    "start": "next start -p ${PORT:-3010}",
+    "lint": "next lint",
+    "models": "node scripts/list-models.mjs"
+  },
+  "dependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "next": "latest",
+    "openai": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest"
+  }
+}

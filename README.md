@@ -41,6 +41,8 @@ PORT=3020 npm run dev
 
 ## 환경변수
 
+`.env.local` 파일을 만들고 아래처럼 넣는다.
+
 ```bash
 OPENAI_API_KEY=sk-...
 OPENAI_STT_MODEL=gpt-4o-mini-transcribe
@@ -48,6 +50,23 @@ OPENAI_CHAT_MODEL=gpt-4o-mini
 ```
 
 `OPENAI_STT_MODEL`, `OPENAI_CHAT_MODEL`은 생략 가능하다.
+
+사용 가능한 모델명을 확인하려면 OpenAI API key를 임시로 환경변수에 넣고 실행한다.
+
+```bash
+OPENAI_API_KEY=sk-... npm run models
+OPENAI_API_KEY=sk-... npm run models gpt
+OPENAI_API_KEY=sk-... npm run models transcribe
+```
+
+원하는 채팅 모델 ID가 보이면 `.env.local`의 `OPENAI_CHAT_MODEL`에 그대로 넣는다.
+예를 들어 계정에서 `gpt-5.5`가 보이면:
+
+```bash
+OPENAI_CHAT_MODEL=gpt-5.5
+```
+
+모델명을 바꾼 뒤에는 dev 서버를 껐다가 다시 켠다.
 
 ## 배포 메모
 
