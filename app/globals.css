@@ -152,7 +152,7 @@ button, textarea { font: inherit; }
   border-radius: 18px;
   background: #f9fafb;
   color: var(--text);
-  padding: 14px 15px;
+  padding: 14px 128px 54px 15px;
   font-size: clamp(17px, 4.2vw, 21px);
   line-height: 1.45;
 }
@@ -162,15 +162,20 @@ button, textarea { font: inherit; }
   cursor: not-allowed;
 }
 
-.composerActions {
+.composerRow {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: stretch;
 }
 
+.textQuestionBox {
+  position: relative;
+  min-width: 0;
+}
+
 .smallMicButton,
-.submitButton {
+.insideSubmitButton {
   border: 0;
   border-radius: 16px;
   padding: 13px 16px;
@@ -178,6 +183,14 @@ button, textarea { font: inherit; }
   font-weight: 850;
   cursor: pointer;
   touch-action: manipulation;
+}
+
+.insideSubmitButton {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  background: #111827;
+  color: white;
 }
 
 .smallMicButton {
@@ -191,12 +204,8 @@ button, textarea { font: inherit; }
   color: #991b1b;
 }
 
-.submitButton {
-  width: 100%;
-}
-
 .smallMicButton:disabled,
-.submitButton:disabled {
+.insideSubmitButton:disabled {
   opacity: 0.42;
   cursor: not-allowed;
 }
@@ -301,8 +310,15 @@ button, textarea { font: inherit; }
   gap: 12px;
 }
 
-.history summary {
-  cursor: pointer;
+.historyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.historyHeader h2 {
+  margin: 0;
   font-size: clamp(18px, 4.5vw, 24px);
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -314,6 +330,13 @@ button, textarea { font: inherit; }
   margin-top: 12px;
 }
 
+.historyActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .historyItem {
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -321,8 +344,17 @@ button, textarea { font: inherit; }
   padding: 13px 14px;
   text-align: left;
   display: grid;
-  gap: 6px;
-  cursor: pointer;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.historyItem.selecting {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.historyItem.expanded {
+  background: #ffffff;
 }
 
 .historyItem strong {
@@ -332,13 +364,31 @@ button, textarea { font: inherit; }
 }
 
 .historyItem span {
+  grid-column: 1;
   color: var(--muted);
   font-size: 15px;
   line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.historyItem.selecting span {
+  grid-column: 2;
+}
+
+.historyCheckbox {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--primary);
+}
+
+.historyTitleButton {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
 }
 
 .clearHistory {
@@ -351,10 +401,20 @@ button, textarea { font: inherit; }
   cursor: pointer;
 }
 
+.clearHistory.secondary {
+  background: #eef2ff;
+  color: #1e3a8a;
+}
+
+.clearHistory:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
 @media (max-width: 420px) {
   .shell { gap: 12px; }
   .actions { grid-template-columns: 1fr; }
-  .composerActions { grid-template-columns: 1fr; }
+  .composerRow { grid-template-columns: 1fr; }
   .smallMicButton { width: 100%; }
   .voiceControls { grid-template-columns: 1fr; }
   .voicePreview { width: 100%; }

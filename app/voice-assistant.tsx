@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 type Step = 'idle' | 'recording' | 'transcribing' | 'thinking' | 'speaking';
-type HistoryItem = { question: string; answer: string; at: number };
+type HistoryTurn = { question: string; answer: string; at: number };
+type HistorySession = { id: string; title: string; turns: HistoryTurn[]; updatedAt: number };
 type VoiceOption = {
   id: string;
   name: string;
@@ -43,10 +44,10 @@ const VOICE_PREVIEW_TEXT = '안녕하세요. 지금 선택한 목소리로 말�
 
 function statusText(step: Step, autoStopReady: boolean) {
   switch (step) {
-    case 'recording': return autoStopReady ? '듣는 중입니다. 조용하면 자동으로 끝납니다.' : '듣는 중입니다.';
+    case 'recording': return autoStopReady ? '듣는 중입니다. 잠시 멈추면 자동으로 끝납니다.' : '듣는 중입니다.';
     case 'transcribing': return '말씀하신 내용을 글자로 바꾸는 중입니다.';
     case 'thinking': return '답변을 생각하는 중입니다.';
-    case 'speaking': return '답변을 읽어드리는 중입니다.';
+    case 'speaking': return '답변을 읽는 중입니다.';
     default: return '';
   }
 }
@@ -92,7 +93,10 @@ export default function VoiceAssistant() {
   const [transcript, setTranscript] = useState('');
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState('');
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [history, setHistory] = useState<HistorySession[]>([]);
+  const [expandedHistoryId, setExpandedHistoryId] = useState('');
+  const [selectedHistoryIds, setSelectedHistoryIds] = useState<string[]>([]);
+  const [isHistoryDeleteMode, setIsHistoryDeleteMode] = useState(false);
   const [autoStopReady, setAutoStopReady] = useState(false);
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [selectedVoiceId, setSelectedVoiceId] = useState('');
@@ -110,6 +114,7 @@ export default function VoiceAssistant() {
   const recognitionHadErrorRef = useRef(false);
   const recognitionFinishTimerRef = useRef<number | null>(null);
   const recognitionFinishingRef = useRef(false);
+  const sessionIdRef = useRef(`session-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   useEffect(() => {
     void cleanupServiceWorker();
@@ -117,8 +122,20 @@ export default function VoiceAssistant() {
     const saved = window.localStorage.getItem(HISTORY_KEY);
     if (saved) {
       try {
-        const parsed = JSON.parse(saved) as HistoryItem[];
-        setHistory(Array.isArray(parsed) ? parsed.slice(0, 10) : []);
+        const parsed = JSON.parse(saved) as unknown;
+        if (Array.isArray(parsed)) {
+          if (parsed.some((item) => Array.isArray((item as HistorySession).turns))) {
+            setHistory((parsed as HistorySession[]).slice(0, 8));
+          } else {
+            const turns = (parsed as HistoryTurn[]).filter((item) => item.question && item.answer);
+            setHistory(turns.length ? [{
+              id: 'legacy-history',
+              title: turns[0].question,
+              turns,
+              updatedAt: turns[0].at || Date.now(),
+            }] : []);
+          }
+        }
       } catch {
         window.localStorage.removeItem(HISTORY_KEY);
       }
@@ -241,18 +258,63 @@ export default function VoiceAssistant() {
     });
   }
 
-  function saveHistory(next: HistoryItem[]) {
+  function saveHistory(next: HistorySession[]) {
     setHistory(next);
-    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next.slice(0, 10)));
+    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next.slice(0, 8)));
   }
 
   function addHistory(question: string, reply: string) {
-    const next = [{ question, answer: reply, at: Date.now() }, ...history].slice(0, 10);
+    const now = Date.now();
+    const turn = { question, answer: reply, at: now };
+    const sessionId = sessionIdRef.current;
+    const existing = history.find((session) => session.id === sessionId);
+    const rest = history.filter((session) => session.id !== sessionId);
+    const session = existing
+      ? {
+          ...existing,
+          title: existing.title || question,
+          turns: [...existing.turns, turn],
+          updatedAt: now,
+        }
+      : {
+          id: sessionId,
+          title: question,
+          turns: [turn],
+          updatedAt: now,
+        };
+    const next = [session, ...rest].slice(0, 8);
     saveHistory(next);
   }
 
   function clearHistory() {
     saveHistory([]);
+    setExpandedHistoryId('');
+    setSelectedHistoryIds([]);
+    setIsHistoryDeleteMode(false);
+  }
+
+  function toggleHistorySelection(sessionId: string) {
+    setSelectedHistoryIds((current) => (
+      current.includes(sessionId)
+        ? current.filter((id) => id !== sessionId)
+        : [...current, sessionId]
+    ));
+  }
+
+  function deleteSelectedHistory() {
+    if (selectedHistoryIds.length === 0) return;
+    const selected = new Set(selectedHistoryIds);
+    saveHistory(history.filter((session) => !selected.has(session.id)));
+    if (selected.has(expandedHistoryId)) setExpandedHistoryId('');
+    setSelectedHistoryIds([]);
+    setIsHistoryDeleteMode(false);
+  }
+
+  function getRecentTurns() {
+    return history
+      .flatMap((session) => session.turns)
+      .slice(-6)
+      .map((item) => ({ question: item.question, answer: item.answer }));
   }
 
   function stopSilenceMonitor() {
@@ -280,7 +342,7 @@ export default function VoiceAssistant() {
     setStep('thinking');
     const chat = await postJson<{ answer: string }>('/api/chat', {
       message: cleanText,
-      history: history.slice(0, 6).map((item) => ({ question: item.question, answer: item.answer })),
+      history: getRecentTurns(),
     });
     setAnswer(chat.answer);
     addHistory(cleanText, chat.answer);
@@ -574,7 +636,7 @@ export default function VoiceAssistant() {
             className={`micButton ${step === 'recording' ? 'recording' : ''}`}
             onClick={onMainButtonClick}
             disabled={!['idle', 'recording', 'speaking'].includes(step)}
-            aria-label={step === 'recording' ? '말하기 끝내기' : '말하기 시작'}
+            aria-label={step === 'recording' ? '끝' : '말하기'}
           >
             <span className="micLabel">{step === 'recording' ? '끝' : '말하기'}</span>
           </button>
@@ -588,27 +650,29 @@ export default function VoiceAssistant() {
           <h2>직접 입력</h2>
           <form className="textQuestionForm" onSubmit={submitTypedQuestion}>
             <label className="composerLabel" htmlFor="question-input">질문하세요</label>
-            <textarea
-              id="question-input"
-              className="textQuestionInput"
-              value={typedQuestion}
-              onChange={(event) => setTypedQuestion(event.target.value)}
-              placeholder="마이크가 안 될 때 여기에 질문을 입력하세요."
-              rows={3}
-              disabled={!['idle', 'speaking'].includes(step)}
-            />
-            <div className="composerActions">
+            <div className="composerRow">
+              <div className="textQuestionBox">
+                <textarea
+                  id="question-input"
+                  className="textQuestionInput"
+                  value={typedQuestion}
+                  onChange={(event) => setTypedQuestion(event.target.value)}
+                  placeholder="무엇이든 질문하세요"
+                  rows={3}
+                  disabled={!['idle', 'speaking'].includes(step)}
+                />
+                <button className="insideSubmitButton" type="submit" disabled={!typedQuestion.trim() || !['idle', 'speaking'].includes(step)}>
+                  질문하기
+                </button>
+              </div>
               <button
                 className={`smallMicButton ${step === 'recording' ? 'recording' : ''}`}
                 type="button"
                 onClick={onMainButtonClick}
                 disabled={!['idle', 'recording', 'speaking'].includes(step)}
-                aria-label={step === 'recording' ? '말하기 끝내기' : '말하기 시작'}
+                aria-label={step === 'recording' ? '끝' : '말하기'}
               >
                 {step === 'recording' ? '끝' : '말하기'}
-              </button>
-              <button className="actionButton submitButton" type="submit" disabled={!typedQuestion.trim() || !['idle', 'speaking'].includes(step)}>
-                질문하기
               </button>
             </div>
             {statusText(step, autoStopReady) ? <div className="status compactStatus" role="status">{statusText(step, autoStopReady)}</div> : null}
@@ -650,18 +714,71 @@ export default function VoiceAssistant() {
         </section>
 
         {history.length > 0 ? (
-          <details className="history card">
-            <summary>최근 대화</summary>
-            <div className="historyList">
-              {history.slice(0, 5).map((item) => (
-                <button key={item.at} className="historyItem" onClick={() => { setTranscript(item.question); setAnswer(item.answer); void speak(item.answer); }}>
-                  <strong>{item.question}</strong>
-                  <span>{item.answer}</span>
+          <section className="history card">
+            <div className="historyHeader">
+              <h2>최근 대화</h2>
+              {isHistoryDeleteMode ? (
+                <div className="historyActions">
+                  <button className="clearHistory" onClick={deleteSelectedHistory} disabled={selectedHistoryIds.length === 0}>
+                    선택 삭제
+                  </button>
+                  <button
+                    className="clearHistory secondary"
+                    onClick={() => {
+                      setIsHistoryDeleteMode(false);
+                      setSelectedHistoryIds([]);
+                    }}
+                  >
+                    취소
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="clearHistory"
+                  onClick={() => {
+                    setIsHistoryDeleteMode(true);
+                    setSelectedHistoryIds([]);
+                  }}
+                >
+                  기록 삭제
                 </button>
+              )}
+            </div>
+            <div className="historyList">
+              {history.map((session) => (
+                <div
+                  key={session.id}
+                  className={`historyItem ${expandedHistoryId === session.id ? 'expanded' : ''} ${isHistoryDeleteMode ? 'selecting' : ''}`}
+                >
+                  {isHistoryDeleteMode ? (
+                    <input
+                      className="historyCheckbox"
+                      type="checkbox"
+                      checked={selectedHistoryIds.includes(session.id)}
+                      onChange={() => toggleHistorySelection(session.id)}
+                      aria-label={`${session.title || '새 대화'} 선택`}
+                    />
+                  ) : null}
+                  <button
+                    className="historyTitleButton"
+                    onClick={() => {
+                      const lastTurn = session.turns[session.turns.length - 1];
+                      setExpandedHistoryId(expandedHistoryId === session.id ? '' : session.id);
+                      if (lastTurn) {
+                        setTranscript(lastTurn.question);
+                        setAnswer(lastTurn.answer);
+                      }
+                    }}
+                  >
+                    <strong>{session.title || '새 대화'}</strong>
+                  </button>
+                  {expandedHistoryId === session.id ? (
+                    <span>{session.turns.map((item) => `${item.question}\n${item.answer}`).join('\n\n')}</span>
+                  ) : null}
+                </div>
               ))}
             </div>
-            <button className="clearHistory" onClick={clearHistory}>기록 지우기</button>
-          </details>
+          </section>
         ) : null}
       </section>
     </main>
