@@ -3,15 +3,15 @@
 
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile
 
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN yarn build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
@@ -31,7 +31,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY scripts/cloud-run-start.sh ./scripts/cloud-run-start.sh
-RUN chmod +x ./scripts/cloud-run-start.sh
+RUN sed -i 's/\r$//' ./scripts/cloud-run-start.sh && chmod +x ./scripts/cloud-run-start.sh
 
 EXPOSE 8080
 CMD ["./scripts/cloud-run-start.sh"]

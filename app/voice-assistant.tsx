@@ -4,10 +4,42 @@ import { useEffect, useRef, useState } from 'react';
 
 type Step = 'idle' | 'recording' | 'transcribing' | 'thinking' | 'speaking';
 type HistoryItem = { question: string; answer: string; at: number };
+type VoiceOption = {
+  id: string;
+  name: string;
+  lang: string;
+  localService: boolean;
+  default: boolean;
+};
+type BrowserSpeechRecognitionEvent = {
+  resultIndex: number;
+  results: ArrayLike<{
+    isFinal: boolean;
+    0: { transcript: string };
+  }>;
+};
+type BrowserSpeechRecognitionErrorEvent = { error?: string };
+type BrowserSpeechRecognition = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null;
+};
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 
-const SILENCE_LIMIT_MS = 2000;
+const SILENCE_LIMIT_MS = 4000;
+const BROWSER_SPEECH_SILENCE_LIMIT_MS = 3800;
 const SILENCE_THRESHOLD = 0.018;
 const HISTORY_KEY = 'gpt-stt-history-v1';
+const VOICE_KEY = 'gpt-stt-voice-v1';
+const SW_CLEANUP_KEY = 'gpt-stt-sw-cleaned-v1';
+const ENABLE_OPENAI_STT_FALLBACK = process.env.NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK === 'true';
+const VOICE_PREVIEW_TEXT = '안녕하세요. 지금 선택한 목소리로 말하고 있어요.';
 
 function statusText(step: Step, autoStopReady: boolean) {
   switch (step) {
@@ -17,6 +49,31 @@ function statusText(step: Step, autoStopReady: boolean) {
     case 'speaking': return '답변을 읽어드리는 중입니다.';
     default: return '';
   }
+}
+
+function getBrowserSpeechRecognition() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition;
+}
+
+function getVoiceId(voice: SpeechSynthesisVoice) {
+  return `${voice.name}__${voice.lang}`;
+}
+
+function getVoiceScore(voice: SpeechSynthesisVoice) {
+  const name = voice.name.toLowerCase();
+  const lang = voice.lang.toLowerCase();
+  let score = 0;
+
+  if (lang === 'ko-kr') score += 80;
+  else if (lang.startsWith('ko')) score += 60;
+  if (name.includes('korean') || name.includes('한국') || name.includes('대한민국')) score += 25;
+  if (name.includes('natural') || name.includes('online') || name.includes('neural')) score += 35;
+  if (name.includes('microsoft')) score += 24;
+  if (name.includes('google')) score += 18;
+  if (!voice.localService) score += 8;
+  if (voice.default) score += 4;
+
+  return score;
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -37,6 +94,9 @@ export default function VoiceAssistant() {
   const [error, setError] = useState('');
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [autoStopReady, setAutoStopReady] = useState(false);
+  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [selectedVoiceId, setSelectedVoiceId] = useState('');
+  const [typedQuestion, setTypedQuestion] = useState('');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -44,11 +104,15 @@ export default function VoiceAssistant() {
   const rafRef = useRef<number | null>(null);
   const silenceSinceRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const recognitionFinalTextRef = useRef('');
+  const recognitionLiveTextRef = useRef('');
+  const recognitionHadErrorRef = useRef(false);
+  const recognitionFinishTimerRef = useRef<number | null>(null);
+  const recognitionFinishingRef = useRef(false);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => undefined);
-    }
+    void cleanupServiceWorker();
 
     const saved = window.localStorage.getItem(HISTORY_KEY);
     if (saved) {
@@ -60,12 +124,122 @@ export default function VoiceAssistant() {
       }
     }
 
+    loadVoices();
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
     return () => {
+      if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = null;
+      clearRecognitionFinishTimer();
+      recognitionRef.current?.abort();
       cleanupRecordingResources();
       window.speechSynthesis?.cancel();
       audioRef.current?.pause();
     };
   }, []);
+
+  async function cleanupServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      const cacheKeys = 'caches' in window ? await window.caches.keys() : [];
+      await Promise.all([
+        ...registrations.map((registration) => registration.unregister()),
+        ...cacheKeys.filter((key) => key.startsWith('gpt-stt-')).map((key) => window.caches.delete(key)),
+      ]);
+
+      if (navigator.serviceWorker.controller && window.sessionStorage.getItem(SW_CLEANUP_KEY) !== 'done') {
+        window.sessionStorage.setItem(SW_CLEANUP_KEY, 'done');
+        window.location.reload();
+      }
+    } catch {
+      // A failed cleanup should not block the voice assistant.
+    }
+  }
+
+  function loadVoices() {
+    if (!('speechSynthesis' in window)) return;
+
+    const availableVoices = window.speechSynthesis.getVoices();
+    const options = availableVoices
+      .filter((voice) => voice.lang.toLowerCase().startsWith('ko') || /korean|한국|대한민국/i.test(voice.name))
+      .sort((a, b) => getVoiceScore(b) - getVoiceScore(a))
+      .map((voice) => ({
+        id: getVoiceId(voice),
+        name: voice.name,
+        lang: voice.lang,
+        localService: voice.localService,
+        default: voice.default,
+      }));
+
+    setVoices(options);
+    setSelectedVoiceId((current) => {
+      const saved = window.localStorage.getItem(VOICE_KEY) || '';
+      const next = current || saved;
+      if (next && options.some((voice) => voice.id === next)) return next;
+      return options[0]?.id || '';
+    });
+  }
+
+  function findSelectedVoice() {
+    if (!('speechSynthesis' in window)) return undefined;
+
+    const availableVoices = window.speechSynthesis.getVoices();
+    const saved = window.localStorage.getItem(VOICE_KEY) || '';
+    const preferredId = selectedVoiceId || saved;
+    const selected = availableVoices.find((voice) => getVoiceId(voice) === preferredId);
+    if (selected) return selected;
+
+    return availableVoices
+      .filter((voice) => voice.lang.toLowerCase().startsWith('ko') || /korean|한국|대한민국/i.test(voice.name))
+      .sort((a, b) => getVoiceScore(b) - getVoiceScore(a))[0];
+  }
+
+  function changeVoice(voiceId: string) {
+    setSelectedVoiceId(voiceId);
+    window.localStorage.setItem(VOICE_KEY, voiceId);
+  }
+
+  function previewVoice() {
+    speakWithBrowser(VOICE_PREVIEW_TEXT);
+  }
+
+  function clearRecognitionFinishTimer() {
+    if (recognitionFinishTimerRef.current !== null) {
+      window.clearTimeout(recognitionFinishTimerRef.current);
+      recognitionFinishTimerRef.current = null;
+    }
+  }
+
+  function scheduleRecognitionFinish() {
+    clearRecognitionFinishTimer();
+    recognitionFinishTimerRef.current = window.setTimeout(() => {
+      finishBrowserSpeechRecognition();
+    }, BROWSER_SPEECH_SILENCE_LIMIT_MS);
+  }
+
+  function finishBrowserSpeechRecognition() {
+    clearRecognitionFinishTimer();
+    const text = recognitionFinalTextRef.current || recognitionLiveTextRef.current;
+    const recognition = recognitionRef.current;
+    recognitionFinishingRef.current = true;
+    recognitionRef.current = null;
+    setAutoStopReady(false);
+    setStep('transcribing');
+
+    try {
+      recognition?.stop();
+    } catch {
+      recognition?.abort();
+    }
+
+    void answerFromText(text).catch((err) => {
+      setError(err instanceof Error ? err.message : '처리 중 문제가 발생했습니다.');
+      setStep('idle');
+    });
+  }
 
   function saveHistory(next: HistoryItem[]) {
     setHistory(next);
@@ -96,6 +270,21 @@ export default function VoiceAssistant() {
     stopSilenceMonitor();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+  }
+
+  async function answerFromText(text: string) {
+    const cleanText = text.trim();
+    if (!cleanText) throw new Error('말소리를 인식하지 못했습니다. 다시 한 번 또렷하게 말씀해 주세요.');
+
+    setTranscript(cleanText);
+    setStep('thinking');
+    const chat = await postJson<{ answer: string }>('/api/chat', {
+      message: cleanText,
+      history: history.slice(0, 6).map((item) => ({ question: item.question, answer: item.answer })),
+    });
+    setAnswer(chat.answer);
+    addHistory(cleanText, chat.answer);
+    await speak(chat.answer);
   }
 
   function startSilenceMonitor(stream: MediaStream) {
@@ -147,9 +336,11 @@ export default function VoiceAssistant() {
     }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
+    const voice = findSelectedVoice();
+    if (voice) utterance.voice = voice;
     utterance.lang = 'ko-KR';
-    utterance.rate = 0.92;
-    utterance.pitch = 1;
+    utterance.rate = 0.96;
+    utterance.pitch = 1.02;
     utterance.onend = () => setStep('idle');
     utterance.onerror = () => setStep('idle');
     window.speechSynthesis.speak(utterance);
@@ -193,6 +384,19 @@ export default function VoiceAssistant() {
     setAnswer('');
     window.speechSynthesis?.cancel();
     audioRef.current?.pause();
+    clearRecognitionFinishTimer();
+    recognitionFinishingRef.current = false;
+
+    const SpeechRecognitionCtor = getBrowserSpeechRecognition();
+    if (SpeechRecognitionCtor) {
+      startBrowserSpeechRecognition(SpeechRecognitionCtor);
+      return;
+    }
+
+    if (!ENABLE_OPENAI_STT_FALLBACK) {
+      setError('이 브라우저는 브라우저 음성 인식을 지원하지 않습니다. Chrome 최신 버전으로 열어 주세요.');
+      return;
+    }
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setError('이 브라우저는 녹음을 지원하지 않습니다. Chrome이나 Safari 최신 버전으로 열어 주세요.');
@@ -224,7 +428,90 @@ export default function VoiceAssistant() {
     }
   }
 
+  function startBrowserSpeechRecognition(SpeechRecognitionCtor: BrowserSpeechRecognitionConstructor) {
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = 'ko-KR';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognitionFinalTextRef.current = '';
+    recognitionLiveTextRef.current = '';
+    recognitionHadErrorRef.current = false;
+    recognitionFinishingRef.current = false;
+    recognitionRef.current = recognition;
+
+    recognition.onresult = (event) => {
+      let finalText = '';
+      let liveText = '';
+      for (let i = 0; i < event.results.length; i += 1) {
+        const result = event.results[i];
+        const transcriptText = result[0]?.transcript || '';
+        liveText += transcriptText;
+        if (result.isFinal) finalText += transcriptText;
+      }
+
+      recognitionLiveTextRef.current = liveText.trim();
+      if (finalText.trim()) recognitionFinalTextRef.current = finalText.trim();
+      if (recognitionLiveTextRef.current) setTranscript(recognitionLiveTextRef.current);
+      if (recognitionLiveTextRef.current || recognitionFinalTextRef.current) scheduleRecognitionFinish();
+    };
+
+    recognition.onerror = (event) => {
+      clearRecognitionFinishTimer();
+      recognitionHadErrorRef.current = true;
+      recognitionRef.current = null;
+      setAutoStopReady(false);
+      setStep('idle');
+      const error = event.error === 'not-allowed'
+        ? '마이크 권한이 필요합니다. 브라우저 주소창 설정에서 마이크를 허용해 주세요.'
+        : '브라우저 음성 인식에 실패했습니다. 다시 한 번 말씀해 주세요.';
+      setError(error);
+    };
+
+    recognition.onend = () => {
+      if (recognitionHadErrorRef.current) return;
+      if (recognitionFinishingRef.current) return;
+      if (!recognitionFinishingRef.current) {
+        window.setTimeout(() => {
+          if (recognitionFinishingRef.current || recognitionHadErrorRef.current || recognitionRef.current !== recognition) return;
+          try {
+            recognition.start();
+          } catch {
+            finishBrowserSpeechRecognition();
+          }
+        }, 180);
+        return;
+      }
+
+      const text = recognitionFinalTextRef.current || recognitionLiveTextRef.current;
+      recognitionRef.current = null;
+      setAutoStopReady(false);
+      setStep('transcribing');
+
+      void answerFromText(text).catch((err) => {
+        setError(err instanceof Error ? err.message : '처리 중 문제가 발생했습니다.');
+        setStep('idle');
+      });
+    };
+
+    try {
+      recognition.start();
+      setStep('recording');
+      setAutoStopReady(true);
+    } catch {
+      recognitionRef.current = null;
+      setAutoStopReady(false);
+      setStep('idle');
+      setError('브라우저 음성 인식을 시작하지 못했습니다. 잠시 후 다시 눌러 주세요.');
+    }
+  }
+
   function stopRecording() {
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      finishBrowserSpeechRecognition();
+      return;
+    }
+
     const recorder = recorderRef.current;
     stopSilenceMonitor();
     if (recorder && recorder.state !== 'inactive') recorder.stop();
@@ -246,14 +533,7 @@ export default function VoiceAssistant() {
       if (!transcribeResponse.ok) throw new Error(transcribeData?.error || '음성 인식에 실패했습니다.');
 
       const text = String(transcribeData.text || '').trim();
-      if (!text) throw new Error('말소리를 인식하지 못했습니다. 다시 한 번 또렷하게 말씀해 주세요.');
-      setTranscript(text);
-
-      setStep('thinking');
-      const chat = await postJson<{ answer: string }>('/api/chat', { message: text });
-      setAnswer(chat.answer);
-      addHistory(text, chat.answer);
-      await speak(chat.answer);
+      await answerFromText(text);
     } catch (err) {
       setError(err instanceof Error ? err.message : '처리 중 문제가 발생했습니다.');
       setStep('idle');
@@ -266,21 +546,34 @@ export default function VoiceAssistant() {
 
   function onMainButtonClick() {
     if (step === 'recording') stopRecording();
-    else if (step === 'idle') void startRecording();
+    else if (step === 'idle' || step === 'speaking') void startRecording();
+  }
+
+  function submitTypedQuestion(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = typedQuestion.trim();
+    if (!text || !['idle', 'speaking'].includes(step)) return;
+
+    setError('');
+    setAnswer('');
+    setTypedQuestion('');
+    window.speechSynthesis?.cancel();
+    audioRef.current?.pause();
+
+    void answerFromText(text).catch((err) => {
+      setError(err instanceof Error ? err.message : '처리 중 문제가 발생했습니다.');
+      setStep('idle');
+    });
   }
 
   return (
     <main className="main">
       <section className="shell">
-        <header className="header">
-          <h1>gpt-stt</h1>
-        </header>
-
         <section className="card controlCard">
           <button
             className={`micButton ${step === 'recording' ? 'recording' : ''}`}
             onClick={onMainButtonClick}
-            disabled={!['idle', 'recording'].includes(step)}
+            disabled={!['idle', 'recording', 'speaking'].includes(step)}
             aria-label={step === 'recording' ? '말하기 끝내기' : '말하기 시작'}
           >
             <span className="micLabel">{step === 'recording' ? '끝' : '말하기'}</span>
@@ -291,6 +584,38 @@ export default function VoiceAssistant() {
 
         {error ? <div className="error">{error}</div> : null}
 
+        <section className="card composerCard">
+          <h2>직접 입력</h2>
+          <form className="textQuestionForm" onSubmit={submitTypedQuestion}>
+            <label className="composerLabel" htmlFor="question-input">질문하세요</label>
+            <textarea
+              id="question-input"
+              className="textQuestionInput"
+              value={typedQuestion}
+              onChange={(event) => setTypedQuestion(event.target.value)}
+              placeholder="마이크가 안 될 때 여기에 질문을 입력하세요."
+              rows={3}
+              disabled={!['idle', 'speaking'].includes(step)}
+            />
+            <div className="composerActions">
+              <button
+                className={`smallMicButton ${step === 'recording' ? 'recording' : ''}`}
+                type="button"
+                onClick={onMainButtonClick}
+                disabled={!['idle', 'recording', 'speaking'].includes(step)}
+                aria-label={step === 'recording' ? '말하기 끝내기' : '말하기 시작'}
+              >
+                {step === 'recording' ? '끝' : '말하기'}
+              </button>
+              <button className="actionButton submitButton" type="submit" disabled={!typedQuestion.trim() || !['idle', 'speaking'].includes(step)}>
+                질문하기
+              </button>
+            </div>
+            {statusText(step, autoStopReady) ? <div className="status compactStatus" role="status">{statusText(step, autoStopReady)}</div> : null}
+            {['transcribing', 'thinking', 'speaking'].includes(step) ? <div className="loader" aria-hidden="true" /> : null}
+          </form>
+        </section>
+
         <section className="panel card">
           <h2>질문</h2>
           <div className={`bubble ${transcript ? '' : 'empty'}`}>{transcript || '아직 없습니다.'}</div>
@@ -299,6 +624,25 @@ export default function VoiceAssistant() {
         <section className="panel card">
           <h2>답변</h2>
           <div className={`bubble ${answer ? '' : 'empty'}`}>{answer || '답변이 여기에 표시됩니다.'}</div>
+          {voices.length > 0 ? (
+            <div className="voiceControls">
+              <label className="voiceLabel" htmlFor="voice-select">목소리</label>
+              <select
+                id="voice-select"
+                className="voiceSelect"
+                value={selectedVoiceId}
+                onChange={(event) => changeVoice(event.target.value)}
+                disabled={step === 'recording'}
+              >
+                {voices.map((voice) => (
+                  <option key={voice.id} value={voice.id}>
+                    {voice.name} ({voice.lang})
+                  </option>
+                ))}
+              </select>
+              <button className="voicePreview" onClick={previewVoice} disabled={step === 'recording'}>미리듣기</button>
+            </div>
+          ) : null}
           <div className="actions">
             <button className="actionButton" onClick={() => void speak(answer)} disabled={!answer || step === 'recording'}>다시 듣기</button>
             <button className="actionButton secondary" onClick={() => { setTranscript(''); setAnswer(''); setError(''); window.speechSynthesis?.cancel(); audioRef.current?.pause(); setStep('idle'); }}>초기화</button>
@@ -327,5 +671,7 @@ export default function VoiceAssistant() {
 declare global {
   interface Window {
     webkitAudioContext?: typeof AudioContext;
+    SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+    webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
   }
 }

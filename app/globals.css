@@ -58,7 +58,7 @@ button, textarea { font: inherit; }
 }
 
 .controlCard {
-  display: grid;
+  display: none;
   justify-items: center;
   gap: 16px;
   padding-block: clamp(24px, 7vw, 42px);
@@ -125,10 +125,129 @@ button, textarea { font: inherit; }
 
 .empty { color: #9ca3af; }
 
+.composerCard {
+  padding: 16px;
+}
+
+.composerCard h2 {
+  display: none;
+}
+
+.textQuestionForm {
+  display: grid;
+  gap: 10px;
+}
+
+.composerLabel {
+  color: var(--text);
+  font-size: clamp(18px, 4.5vw, 24px);
+  font-weight: 850;
+}
+
+.textQuestionInput {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #f9fafb;
+  color: var(--text);
+  padding: 14px 15px;
+  font-size: clamp(17px, 4.2vw, 21px);
+  line-height: 1.45;
+}
+
+.textQuestionInput:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.composerActions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.smallMicButton,
+.submitButton {
+  border: 0;
+  border-radius: 16px;
+  padding: 13px 16px;
+  font-size: clamp(15px, 3.8vw, 18px);
+  font-weight: 850;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.smallMicButton {
+  min-width: 92px;
+  background: #eef2ff;
+  color: #1e3a8a;
+}
+
+.smallMicButton.recording {
+  background: #fff1f2;
+  color: #991b1b;
+}
+
+.submitButton {
+  width: 100%;
+}
+
+.smallMicButton:disabled,
+.submitButton:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.voiceControls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.voiceLabel {
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.voiceSelect {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f9fafb;
+  color: var(--text);
+  padding: 12px 13px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.voicePreview {
+  border: 0;
+  border-radius: 14px;
+  background: #eef2ff;
+  color: #1e3a8a;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.voicePreview:disabled,
+.voiceSelect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .actionButton {
@@ -235,5 +354,9 @@ button, textarea { font: inherit; }
 @media (max-width: 420px) {
   .shell { gap: 12px; }
   .actions { grid-template-columns: 1fr; }
+  .composerActions { grid-template-columns: 1fr; }
+  .smallMicButton { width: 100%; }
+  .voiceControls { grid-template-columns: 1fr; }
+  .voicePreview { width: 100%; }
   .card { border-radius: 22px; }
 }

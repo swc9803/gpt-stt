@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { formatOpenAIError } from '../openai-errors';
 import { getOpenAI } from '../openai';
 
 export const runtime = 'nodejs';
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ text: result.text || '' });
   } catch (err) {
-    const message = err instanceof Error ? err.message : '음성 인식 서버 오류가 발생했습니다.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const { error, status } = formatOpenAIError(err, '음성 인식', '음성 인식 서버 오류가 발생했습니다.');
+    return NextResponse.json({ error }, { status });
   }
 }

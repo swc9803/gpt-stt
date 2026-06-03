@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createHermesCodexAnswer } from '../hermes-codex';
+import { formatOpenAIError } from '../openai-errors';
 import { getOpenAI } from '../openai';
 
 export const runtime = 'nodejs';
 
-type ChatRequest = { message?: string };
+type ChatContextItem = { question?: string; answer?: string };
+type ChatRequest = { message?: string; history?: ChatContextItem[] };
 
 type ChatProvider = 'openai' | 'hermes-codex';
 
@@ -12,6 +14,23 @@ function getChatProvider(): ChatProvider {
   const provider = (process.env.CHAT_PROVIDER || process.env.AI_CHAT_PROVIDER || 'openai').toLowerCase();
   if (provider === 'hermes-codex' || provider === 'codex') return 'hermes-codex';
   return 'openai';
+}
+
+function buildMessageWithHistory(message: string, history: ChatContextItem[]) {
+  const recent = history
+    .slice(0, 6)
+    .reverse()
+    .map((item, index) => {
+      const question = String(item.question || '').trim();
+      const answer = String(item.answer || '').trim();
+      if (!question && !answer) return '';
+      return [`[${index + 1}] 사용자: ${question}`, `답변: ${answer}`].join('\n');
+    })
+    .filter(Boolean)
+    .join('\n\n');
+
+  if (!recent) return message;
+  return ['최근 대화:', recent, '', `현재 질문: ${message}`].join('\n');
 }
 
 async function createOpenAIAnswer(message: string) {
@@ -39,17 +58,19 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as ChatRequest;
     const message = String(body.message || '').trim();
+    const history = Array.isArray(body.history) ? body.history : [];
     if (!message) {
       return NextResponse.json({ error: '질문이 비어 있습니다.' }, { status: 400 });
     }
 
+    const messageWithHistory = buildMessageWithHistory(message, history);
     const answer = getChatProvider() === 'hermes-codex'
-      ? await createHermesCodexAnswer(message)
-      : await createOpenAIAnswer(message);
+      ? await createHermesCodexAnswer(messageWithHistory)
+      : await createOpenAIAnswer(messageWithHistory);
 
     return NextResponse.json({ answer });
   } catch (err) {
-    const message = err instanceof Error ? err.message : '답변 생성 서버 오류가 발생했습니다.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const { error, status } = formatOpenAIError(err, '답변 생성', '답변 생성 서버 오류가 발생했습니다.');
+    return NextResponse.json({ error }, { status });
   }
 }
