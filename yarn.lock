@@ -280,9 +280,9 @@ next@latest:
     sharp "^0.34.5"
 
 openai@latest:
-  version "6.41.0"
-  resolved "https://registry.yarnpkg.com/openai/-/openai-6.41.0.tgz#b27435450167f415aa38a8f899a31a5ca0fb347f"
-  integrity sha512-IGWPopZq6Rjoynjfb3NSLf/z2MTw7UiOsm9TAjPGAjUESH7Uq41Trg4QWehBEn58p74i+m7uoRPV2vXcpPXhyA==
+  version "6.42.0"
+  resolved "https://registry.yarnpkg.com/openai/-/openai-6.42.0.tgz#497bb98294a2aadcc90a655736c1d43c32ffd5d9"
+  integrity sha512-1WFEt/uXMXOLhYRNkgJWo08Y2YNvNwpVU72K7ibrWgWpNOXd4VojXLbe6SQ4bLiUQ3Y8jz4IiyVkylJCL1DtZg==
 
 picocolors@^1.0.0:
   version "1.1.1"
