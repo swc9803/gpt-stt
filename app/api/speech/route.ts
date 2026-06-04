@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
+import { DEFAULT_ELEVENLABS_MODEL_ID, isElevenLabsModelId } from '../../elevenlabs-models';
 
 export const runtime = 'nodejs';
 
-type SpeechRequest = { text?: string };
+type SpeechRequest = { text?: string; modelId?: string };
 
 function getNumberEnv(name: string, fallback: number) {
   const value = Number(process.env[name]);
@@ -61,12 +62,22 @@ function getElevenLabsError(err: unknown) {
   };
 }
 
-async function createElevenLabsSpeech(text: string) {
+async function createElevenLabsSpeech(text: string, modelId: string) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID;
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY is not configured.');
   if (!voiceId) throw new Error('ELEVENLABS_VOICE_ID is not configured.');
 
+  if (modelId && !isElevenLabsModelId(modelId)) {
+    const error = new Error('지원하지 않는 ElevenLabs 모델입니다.');
+    (error as Error & { status: number }).status = 400;
+    throw error;
+  }
+
+  const requestedModelId = modelId || process.env.ELEVENLABS_MODEL_ID || DEFAULT_ELEVENLABS_MODEL_ID;
+  const safeModelId = isElevenLabsModelId(requestedModelId)
+    ? requestedModelId
+    : DEFAULT_ELEVENLABS_MODEL_ID;
   const outputFormat = process.env.ELEVENLABS_OUTPUT_FORMAT || 'mp3_44100_128';
   const url = new URL(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`);
   url.searchParams.set('output_format', outputFormat);
@@ -80,7 +91,7 @@ async function createElevenLabsSpeech(text: string) {
     },
     body: JSON.stringify({
       text: text.slice(0, 1200),
-      model_id: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
+      model_id: safeModelId,
       language_code: process.env.ELEVENLABS_LANGUAGE_CODE || 'ko',
       voice_settings: {
         stability: getNumberEnv('ELEVENLABS_STABILITY', 0.42),
@@ -114,11 +125,12 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as SpeechRequest;
     const text = String(body.text || '').trim();
+    const modelId = String(body.modelId || '').trim();
     if (!text) {
       return NextResponse.json({ error: '읽을 답변이 비어 있습니다.' }, { status: 400 });
     }
 
-    const audio = await createElevenLabsSpeech(text);
+    const audio = await createElevenLabsSpeech(text, modelId);
     return new NextResponse(audio, {
       headers: {
         'content-type': 'audio/mpeg',

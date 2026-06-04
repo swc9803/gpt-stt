@@ -1,6 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import {
+  DEFAULT_ELEVENLABS_MODEL_ID,
+  ELEVENLABS_MODEL_OPTIONS,
+  type ElevenLabsModelId,
+  type ElevenLabsModelOption,
+  isElevenLabsModelId,
+} from './elevenlabs-models';
 
 type Step = 'idle' | 'recording' | 'transcribing' | 'thinking' | 'speaking';
 type HistoryTurn = { question: string; answer: string; at: number };
@@ -27,6 +34,8 @@ type BrowserSpeechRecognition = {
 type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 type HealthResponse = {
   serverTts?: boolean;
+  ttsModel?: string;
+  ttsModels?: ElevenLabsModelOption[];
 };
 
 const SILENCE_LIMIT_MS = 2400;
@@ -35,6 +44,7 @@ const BROWSER_SPEECH_FINAL_SILENCE_LIMIT_MS = 700;
 const SILENCE_THRESHOLD = 0.018;
 const HISTORY_KEY = 'gpt-stt-history-v1';
 const SW_CLEANUP_KEY = 'gpt-stt-sw-cleaned-v1';
+const TTS_MODEL_KEY = 'gpt-stt-elevenlabs-model-v1';
 const MAX_HISTORY_SESSIONS = 8;
 const MAX_CONTEXT_TURNS = 4;
 const ENABLE_OPENAI_STT_FALLBACK = process.env.NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK === 'true';
@@ -207,6 +217,8 @@ export default function VoiceAssistant() {
   const [autoStopReady, setAutoStopReady] = useState(false);
   const [typedQuestion, setTypedQuestion] = useState('');
   const [serverTtsEnabled, setServerTtsEnabled] = useState(true);
+  const [ttsModels, setTtsModels] = useState<ElevenLabsModelOption[]>(ELEVENLABS_MODEL_OPTIONS);
+  const [selectedTtsModel, setSelectedTtsModel] = useState<ElevenLabsModelId>(DEFAULT_ELEVENLABS_MODEL_ID);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -287,9 +299,21 @@ export default function VoiceAssistant() {
       if (!response.ok) return;
       const data = await response.json() as HealthResponse;
       setServerTtsEnabled(data.serverTts !== false);
+      if (Array.isArray(data.ttsModels) && data.ttsModels.length > 0) {
+        setTtsModels(data.ttsModels.filter((model) => isElevenLabsModelId(model.id)));
+      }
+      const savedModelId = window.localStorage.getItem(TTS_MODEL_KEY);
+      const nextModelId = savedModelId || data.ttsModel || DEFAULT_ELEVENLABS_MODEL_ID;
+      if (isElevenLabsModelId(nextModelId)) setSelectedTtsModel(nextModelId);
     } catch {
       setServerTtsEnabled(true);
     }
+  }
+
+  function selectTtsModel(modelId: string) {
+    if (!isElevenLabsModelId(modelId)) return;
+    setSelectedTtsModel(modelId);
+    window.localStorage.setItem(TTS_MODEL_KEY, modelId);
   }
 
   function previewVoice() {
@@ -490,7 +514,7 @@ export default function VoiceAssistant() {
       const response = await fetch('/api/speech', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, modelId: selectedTtsModel }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -765,9 +789,27 @@ export default function VoiceAssistant() {
           <h2>답변</h2>
           <div className={`bubble ${answer ? '' : 'empty'}`}>{answer || '답변이 여기에 표시됩니다.'}</div>
           <div className="voiceControls">
-            <span className="voiceLabel">목소리</span>
-            <span className="serverVoiceBadge">ElevenLabs</span>
-            <button className="voicePreview" onClick={previewVoice} disabled={step === 'recording' || !serverTtsEnabled}>미리듣기</button>
+            <div className="voiceRow">
+              <span className="voiceLabel">목소리</span>
+              <span className="serverVoiceBadge">ElevenLabs</span>
+              <button className="voicePreview" onClick={previewVoice} disabled={step === 'recording' || !serverTtsEnabled}>미리듣기</button>
+            </div>
+            <label className="voiceRow modelRow" htmlFor="tts-model-select">
+              <span className="voiceLabel">모델</span>
+              <select
+                id="tts-model-select"
+                className="ttsModelSelect"
+                value={selectedTtsModel}
+                onChange={(event) => selectTtsModel(event.target.value)}
+                disabled={step === 'recording' || !serverTtsEnabled}
+              >
+                {ttsModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.label} - {model.detail}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <div className="actions">
             <button className="actionButton" onClick={() => void speak(answer)} disabled={!answer || step === 'recording'}>다시 듣기</button>

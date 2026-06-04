@@ -230,6 +230,11 @@ select {
 
 .voiceControls {
   display: grid;
+  gap: 12px;
+}
+
+.voiceRow {
+  display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
@@ -251,6 +256,28 @@ select {
   padding: 12px 13px;
   font-size: 15px;
   font-weight: 800;
+}
+
+.modelRow {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.ttsModelSelect {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f9fafb;
+  color: var(--text);
+  padding: 12px 13px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .voicePreview {
@@ -434,12 +461,13 @@ select {
 
   .actions,
   .composerRow,
-  .voiceControls {
+  .voiceRow {
     grid-template-columns: 1fr;
   }
 
   .smallMicButton,
-  .voicePreview {
+  .voicePreview,
+  .ttsModelSelect {
     width: 100%;
   }
 

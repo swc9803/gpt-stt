@@ -1,10 +1,5 @@
 # todo
 
-목소리 모델 추가
-ui 개선
-css to scss 계층형태
-word break
-
 ## Server TTS
 
 TTS는 ElevenLabs만 사용합니다.
@@ -12,9 +7,16 @@ TTS는 ElevenLabs만 사용합니다.
 ```bash
 ELEVENLABS_API_KEY=your_api_key
 ELEVENLABS_VOICE_ID=your_voice_id
-ELEVENLABS_MODEL_ID=eleven_multilingual_v2
+ELEVENLABS_MODEL_ID=eleven_flash_v2_5
 ELEVENLABS_OUTPUT_FORMAT=mp3_44100_128
 ```
+
+무료 플랜 포함 모델:
+
+- `eleven_flash_v2_5`: 빠른 대화용 기본값
+- `eleven_turbo_v2_5`: 속도와 품질 균형
+- `eleven_multilingual_v2`: 자연스러운 한국어 음성
+- `eleven_v3`: 표현력 높은 음성
 
 선택 조정값:
 
