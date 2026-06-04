@@ -40,9 +40,32 @@ const SILENCE_THRESHOLD = 0.018;
 const HISTORY_KEY = 'gpt-stt-history-v1';
 const VOICE_KEY = 'gpt-stt-voice-v1';
 const SW_CLEANUP_KEY = 'gpt-stt-sw-cleaned-v1';
+const MAX_HISTORY_SESSIONS = 8;
+const MAX_CONTEXT_TURNS = 4;
 const ENABLE_OPENAI_STT_FALLBACK = process.env.NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK === 'true';
 const ENABLE_SERVER_TTS = process.env.NEXT_PUBLIC_ENABLE_SERVER_TTS === 'true';
 const VOICE_PREVIEW_TEXT = '안녕하세요. 지금 선택한 목소리로 말하고 있어요.';
+const TOPIC_STOP_WORDS = new Set([
+  '가족',
+  '가능',
+  '관련',
+  '그럼',
+  '그건',
+  '그거',
+  '대해',
+  '먹을',
+  '무엇',
+  '방법',
+  '만드는',
+  '만드는법',
+  '설명',
+  '알려줘',
+  '자세히',
+  '정도',
+  '조금',
+  '주제',
+  '질문',
+]);
 
 function statusText(step: Step, autoStopReady: boolean) {
   switch (step) {
@@ -90,6 +113,115 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data as T;
 }
 
+function createSessionId() {
+  return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function normalizeTopicToken(token: string) {
+  return token
+    .replace(/(으로는|로는|으로|에는|에서|에게|부터|까지|은|는|이|가|을|를|도|만|과|와|랑)$/u, '')
+    .trim();
+}
+
+function getTopicTokens(text: string) {
+  const tokens = text
+    .toLowerCase()
+    .replace(/[^0-9a-zㄱ-ㅎㅏ-ㅣ가-힣\s]/g, ' ')
+    .split(/\s+/)
+    .map(normalizeTopicToken)
+    .filter((token) => token.length >= 2 && !TOPIC_STOP_WORDS.has(token))
+    .flatMap((token) => {
+      const related = [token];
+      if (token.includes('현대')) related.push('현대');
+      if (token.includes('모비스')) related.push('모비스');
+      return related;
+    });
+
+  return Array.from(new Set(tokens));
+}
+
+function isRelatedToken(left: string, right: string) {
+  if (left === right) return true;
+  return left.length >= 2 && right.length >= 2 && (left.includes(right) || right.includes(left));
+}
+
+function isFollowUpMessage(message: string) {
+  const compact = message.replace(/\s+/g, '');
+  if (!compact) return false;
+  if (/^(자세히|더자세히|좀더|구체적으로|계속|이어|그럼|그러면|그건|그거|이건|이거|저건|저거|아까|방금)/u.test(compact)) return true;
+  if (compact.length <= 24 && /(로는|으로는|은안돼|는안돼|가능해|가능한가|괜찮아|왜|얼마나|몇|언제|어떻게)/u.test(compact)) return true;
+  return compact.length <= 12 && /(은|는|도|만|돼|되나요|되나|어때)[?？]?$/u.test(compact);
+}
+
+function scoreSessionForMessage(message: string, session: HistorySession) {
+  const messageTokens = getTopicTokens(message);
+  if (messageTokens.length === 0) return 0;
+
+  const sessionText = session.turns
+    .map((turn) => `${turn.question} ${turn.answer}`)
+    .join(' ');
+  const sessionTokens = getTopicTokens(sessionText);
+
+  return messageTokens.reduce((score, messageToken) => {
+    const related = sessionTokens.find((sessionToken) => isRelatedToken(messageToken, sessionToken));
+    if (!related) return score;
+    return score + (messageToken === related ? 2 : 1);
+  }, 0);
+}
+
+function findContextSession(message: string, sessions: HistorySession[], preferredSessionId: string) {
+  if (sessions.length === 0) return undefined;
+
+  const preferredSession = sessions.find((session) => session.id === preferredSessionId) || sessions[0];
+  if (isFollowUpMessage(message)) return preferredSession;
+
+  const [best] = sessions
+    .map((session) => ({ session, score: scoreSessionForMessage(message, session) }))
+    .sort((left, right) => right.score - left.score);
+
+  return best && best.score > 0 ? best.session : undefined;
+}
+
+function splitMixedHistorySessions(sessions: HistorySession[]) {
+  const normalized: HistorySession[] = [];
+
+  sessions.forEach((session) => {
+    const groups: HistorySession[] = [];
+    let current: HistorySession | undefined;
+
+    session.turns.forEach((turn) => {
+      const updatedAt = turn.at || session.updatedAt || Date.now();
+      const sameTopic = current
+        ? isFollowUpMessage(turn.question) || scoreSessionForMessage(turn.question, current) > 0
+        : false;
+
+      if (!current || !sameTopic) {
+        if (current) groups.push(current);
+        current = {
+          id: groups.length === 0 ? session.id : `${session.id}-topic-${groups.length + 1}`,
+          title: turn.question || session.title || '새 대화',
+          turns: [turn],
+          updatedAt,
+        };
+        return;
+      }
+
+      current = {
+        ...current,
+        turns: [...current.turns, turn],
+        updatedAt,
+      };
+    });
+
+    if (current) groups.push(current);
+    normalized.push(...groups);
+  });
+
+  return normalized
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .slice(0, MAX_HISTORY_SESSIONS);
+}
+
 export default function VoiceAssistant() {
   const [step, setStep] = useState<Step>('idle');
   const [transcript, setTranscript] = useState('');
@@ -116,7 +248,7 @@ export default function VoiceAssistant() {
   const recognitionHadErrorRef = useRef(false);
   const recognitionFinishTimerRef = useRef<number | null>(null);
   const recognitionFinishingRef = useRef(false);
-  const sessionIdRef = useRef(`session-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const sessionIdRef = useRef(createSessionId());
 
   useEffect(() => {
     void cleanupServiceWorker();
@@ -127,15 +259,19 @@ export default function VoiceAssistant() {
         const parsed = JSON.parse(saved) as unknown;
         if (Array.isArray(parsed)) {
           if (parsed.some((item) => Array.isArray((item as HistorySession).turns))) {
-            setHistory((parsed as HistorySession[]).slice(0, 8));
+            const normalized = splitMixedHistorySessions(parsed as HistorySession[]);
+            setHistory(normalized);
+            window.localStorage.setItem(HISTORY_KEY, JSON.stringify(normalized));
           } else {
             const turns = (parsed as HistoryTurn[]).filter((item) => item.question && item.answer);
-            setHistory(turns.length ? [{
+            const normalized = splitMixedHistorySessions(turns.length ? [{
               id: 'legacy-history',
               title: turns[0].question,
               turns,
               updatedAt: turns[0].at || Date.now(),
             }] : []);
+            setHistory(normalized);
+            window.localStorage.setItem(HISTORY_KEY, JSON.stringify(normalized));
           }
         }
       } catch {
@@ -262,34 +398,37 @@ export default function VoiceAssistant() {
 
   function saveHistory(next: HistorySession[]) {
     setHistory(next);
-    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next.slice(0, 8)));
+    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next.slice(0, MAX_HISTORY_SESSIONS)));
   }
 
-  function addHistory(question: string, reply: string) {
+  function addHistory(question: string, reply: string, sessionId: string) {
     const now = Date.now();
     const turn = { question, answer: reply, at: now };
-    const sessionId = sessionIdRef.current;
-    const existing = history.find((session) => session.id === sessionId);
-    const rest = history.filter((session) => session.id !== sessionId);
-    const session = existing
-      ? {
-          ...existing,
-          title: existing.title || question,
-          turns: [...existing.turns, turn],
-          updatedAt: now,
-        }
-      : {
-          id: sessionId,
-          title: question,
-          turns: [turn],
-          updatedAt: now,
-        };
-    const next = [session, ...rest].slice(0, 8);
-    saveHistory(next);
+    setHistory((current) => {
+      const existing = current.find((session) => session.id === sessionId);
+      const rest = current.filter((session) => session.id !== sessionId);
+      const session = existing
+        ? {
+            ...existing,
+            title: existing.title || question,
+            turns: [...existing.turns, turn],
+            updatedAt: now,
+          }
+        : {
+            id: sessionId,
+            title: question,
+            turns: [turn],
+            updatedAt: now,
+          };
+      const next = [session, ...rest].slice(0, MAX_HISTORY_SESSIONS);
+      window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
   }
 
   function clearHistory() {
     saveHistory([]);
+    sessionIdRef.current = createSessionId();
     setExpandedHistoryId('');
     setSelectedHistoryIds([]);
     setIsHistoryDeleteMode(false);
@@ -312,11 +451,17 @@ export default function VoiceAssistant() {
     setIsHistoryDeleteMode(false);
   }
 
-  function getRecentTurns() {
-    return history
-      .flatMap((session) => session.turns)
-      .slice(-6)
-      .map((item) => ({ question: item.question, answer: item.answer }));
+  function getContextForMessage(message: string) {
+    const contextSession = findContextSession(message, history, sessionIdRef.current);
+    const sessionId = contextSession?.id || createSessionId();
+    sessionIdRef.current = sessionId;
+
+    return {
+      sessionId,
+      turns: (contextSession?.turns || [])
+        .slice(-MAX_CONTEXT_TURNS)
+        .map((item) => ({ question: item.question, answer: item.answer })),
+    };
   }
 
   function stopSilenceMonitor() {
@@ -342,12 +487,13 @@ export default function VoiceAssistant() {
 
     setTranscript(cleanText);
     setStep('thinking');
+    const context = getContextForMessage(cleanText);
     const chat = await postJson<{ answer: string }>('/api/chat', {
       message: cleanText,
-      history: getRecentTurns(),
+      history: context.turns,
     });
     setAnswer(chat.answer);
-    addHistory(cleanText, chat.answer);
+    addHistory(cleanText, chat.answer, context.sessionId);
     await speak(chat.answer);
   }
 
@@ -691,7 +837,7 @@ export default function VoiceAssistant() {
 
         <section className="panel card">
           <h2>질문</h2>
-          <div className={`bubble ${transcript ? '' : 'empty'}`}>{transcript || '아직 없습니다.'}</div>
+          <div className={`bubble ${transcript ? '' : 'empty'}`}>{transcript}</div>
         </section>
 
         <section className="panel card">
@@ -718,7 +864,7 @@ export default function VoiceAssistant() {
           ) : null}
           <div className="actions">
             <button className="actionButton" onClick={() => void speak(answer)} disabled={!answer || step === 'recording'}>다시 듣기</button>
-            <button className="actionButton secondary" onClick={() => { setTranscript(''); setAnswer(''); setError(''); window.speechSynthesis?.cancel(); audioRef.current?.pause(); setStep('idle'); }}>초기화</button>
+            <button className="actionButton secondary" onClick={() => { sessionIdRef.current = createSessionId(); setTranscript(''); setAnswer(''); setError(''); window.speechSynthesis?.cancel(); audioRef.current?.pause(); setStep('idle'); }}>초기화</button>
           </div>
         </section>
 
@@ -772,6 +918,7 @@ export default function VoiceAssistant() {
                     className="historyTitleButton"
                     onClick={() => {
                       const lastTurn = session.turns[session.turns.length - 1];
+                      sessionIdRef.current = session.id;
                       setExpandedHistoryId(expandedHistoryId === session.id ? '' : session.id);
                       if (lastTurn) {
                         setTranscript(lastTurn.question);
