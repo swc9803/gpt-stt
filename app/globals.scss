@@ -11,9 +11,13 @@
   --shadow: 0 18px 50px rgba(17, 24, 39, 0.08);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  word-break: keep-all;
+}
 
-html, body {
+html,
+body {
   margin: 0;
   min-height: 100%;
   background: linear-gradient(180deg, #ffffff 0%, var(--bg) 100%);
@@ -21,7 +25,11 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-button, textarea { font: inherit; }
+button,
+textarea,
+select {
+  font: inherit;
+}
 
 .main {
   min-height: 100dvh;
@@ -40,13 +48,13 @@ button, textarea { font: inherit; }
 .header {
   text-align: center;
   padding: 4px 0 2px;
-}
 
-.header h1 {
-  margin: 0;
-  font-size: clamp(34px, 9vw, 56px);
-  letter-spacing: -0.06em;
-  line-height: 1;
+  h1 {
+    margin: 0;
+    font-size: clamp(34px, 9vw, 56px);
+    letter-spacing: -0.06em;
+    line-height: 1;
+  }
 }
 
 .card {
@@ -78,12 +86,15 @@ button, textarea { font: inherit; }
   cursor: pointer;
   touch-action: manipulation;
   transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
-}
 
-.micButton:active { transform: scale(0.985); }
-.micButton.recording {
-  background: linear-gradient(145deg, var(--danger), #ef4444);
-  box-shadow: 0 22px 45px rgba(220, 38, 38, 0.25);
+  &:active {
+    transform: scale(0.985);
+  }
+
+  &.recording {
+    background: linear-gradient(145deg, var(--danger), #ef4444);
+    box-shadow: 0 22px 45px rgba(220, 38, 38, 0.25);
+  }
 }
 
 .micLabel {
@@ -104,12 +115,12 @@ button, textarea { font: inherit; }
 .panel {
   display: grid;
   gap: 10px;
-}
 
-.panel h2 {
-  margin: 0;
-  font-size: clamp(18px, 4.5vw, 24px);
-  letter-spacing: -0.03em;
+  h2 {
+    margin: 0;
+    font-size: clamp(18px, 4.5vw, 24px);
+    letter-spacing: -0.03em;
+  }
 }
 
 .bubble {
@@ -123,14 +134,16 @@ button, textarea { font: inherit; }
   line-height: 1.48;
 }
 
-.empty { color: #9ca3af; }
+.empty {
+  color: #9ca3af;
+}
 
 .composerCard {
   padding: 16px;
-}
 
-.composerCard h2 {
-  display: none;
+  h2 {
+    display: none;
+  }
 }
 
 .textQuestionForm {
@@ -142,24 +155,6 @@ button, textarea { font: inherit; }
   color: var(--text);
   font-size: clamp(18px, 4.5vw, 24px);
   font-weight: 850;
-}
-
-.textQuestionInput {
-  width: 100%;
-  min-height: 88px;
-  resize: vertical;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: #f9fafb;
-  color: var(--text);
-  padding: 14px 128px 54px 15px;
-  font-size: clamp(17px, 4.2vw, 21px);
-  line-height: 1.45;
-}
-
-.textQuestionInput:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .composerRow {
@@ -174,6 +169,24 @@ button, textarea { font: inherit; }
   min-width: 0;
 }
 
+.textQuestionInput {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #f9fafb;
+  color: var(--text);
+  padding: 14px 128px 54px 15px;
+  font-size: clamp(17px, 4.2vw, 21px);
+  line-height: 1.45;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
 .smallMicButton,
 .insideSubmitButton {
   border: 0;
@@ -183,6 +196,11 @@ button, textarea { font: inherit; }
   font-weight: 850;
   cursor: pointer;
   touch-action: manipulation;
+
+  &:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
 }
 
 .insideSubmitButton {
@@ -197,17 +215,11 @@ button, textarea { font: inherit; }
   min-width: 92px;
   background: #eef2ff;
   color: #1e3a8a;
-}
 
-.smallMicButton.recording {
-  background: #fff1f2;
-  color: #991b1b;
-}
-
-.smallMicButton:disabled,
-.insideSubmitButton:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
+  &.recording {
+    background: #fff1f2;
+    color: #991b1b;
+  }
 }
 
 .actions {
@@ -239,6 +251,11 @@ button, textarea { font: inherit; }
   padding: 12px 13px;
   font-size: 15px;
   font-weight: 700;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .voicePreview {
@@ -251,12 +268,11 @@ button, textarea { font: inherit; }
   font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
-}
 
-.voicePreview:disabled,
-.voiceSelect:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .actionButton {
@@ -269,16 +285,16 @@ button, textarea { font: inherit; }
   font-weight: 800;
   cursor: pointer;
   touch-action: manipulation;
-}
 
-.actionButton.secondary {
-  background: #eef2ff;
-  color: #1e3a8a;
-}
+  &.secondary {
+    background: #eef2ff;
+    color: #1e3a8a;
+  }
 
-.actionButton:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
+  &:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
 }
 
 .error {
@@ -301,8 +317,13 @@ button, textarea { font: inherit; }
 }
 
 @keyframes loading {
-  from { background-position: 120% 0; }
-  to { background-position: -120% 0; }
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
 }
 
 .history {
@@ -315,13 +336,13 @@ button, textarea { font: inherit; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
 
-.historyHeader h2 {
-  margin: 0;
-  font-size: clamp(18px, 4.5vw, 24px);
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  h2 {
+    margin: 0;
+    font-size: clamp(18px, 4.5vw, 24px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
 }
 
 .historyList {
@@ -347,32 +368,32 @@ button, textarea { font: inherit; }
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-items: start;
-}
 
-.historyItem.selecting {
-  grid-template-columns: auto minmax(0, 1fr);
-}
+  &.selecting {
+    grid-template-columns: auto minmax(0, 1fr);
 
-.historyItem.expanded {
-  background: #ffffff;
-}
+    span {
+      grid-column: 2;
+    }
+  }
 
-.historyItem strong {
-  color: var(--text);
-  font-size: 16px;
-  line-height: 1.35;
-}
+  &.expanded {
+    background: #ffffff;
+  }
 
-.historyItem span {
-  grid-column: 1;
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.35;
-  white-space: pre-wrap;
-}
+  strong {
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.35;
+  }
 
-.historyItem.selecting span {
-  grid-column: 2;
+  span {
+    grid-column: 1;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.35;
+    white-space: pre-wrap;
+  }
 }
 
 .historyCheckbox {
@@ -399,24 +420,35 @@ button, textarea { font: inherit; }
   color: #374151;
   font-weight: 750;
   cursor: pointer;
-}
 
-.clearHistory.secondary {
-  background: #eef2ff;
-  color: #1e3a8a;
-}
+  &.secondary {
+    background: #eef2ff;
+    color: #1e3a8a;
+  }
 
-.clearHistory:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
+  &:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
 }
 
 @media (max-width: 420px) {
-  .shell { gap: 12px; }
-  .actions { grid-template-columns: 1fr; }
-  .composerRow { grid-template-columns: 1fr; }
-  .smallMicButton { width: 100%; }
-  .voiceControls { grid-template-columns: 1fr; }
-  .voicePreview { width: 100%; }
-  .card { border-radius: 22px; }
+  .shell {
+    gap: 12px;
+  }
+
+  .actions,
+  .composerRow,
+  .voiceControls {
+    grid-template-columns: 1fr;
+  }
+
+  .smallMicButton,
+  .voicePreview {
+    width: 100%;
+  }
+
+  .card {
+    border-radius: 22px;
+  }
 }

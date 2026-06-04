@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import './globals.css';
+import './globals.scss';
 
 export const metadata: Metadata = {
   title: 'gpt-stt',

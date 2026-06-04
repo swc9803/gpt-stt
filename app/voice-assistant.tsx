@@ -33,13 +33,15 @@ type BrowserSpeechRecognition = {
 };
 type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 
-const SILENCE_LIMIT_MS = 4000;
-const BROWSER_SPEECH_SILENCE_LIMIT_MS = 3800;
+const SILENCE_LIMIT_MS = 2400;
+const BROWSER_SPEECH_SILENCE_LIMIT_MS = 1600;
+const BROWSER_SPEECH_FINAL_SILENCE_LIMIT_MS = 700;
 const SILENCE_THRESHOLD = 0.018;
 const HISTORY_KEY = 'gpt-stt-history-v1';
 const VOICE_KEY = 'gpt-stt-voice-v1';
 const SW_CLEANUP_KEY = 'gpt-stt-sw-cleaned-v1';
 const ENABLE_OPENAI_STT_FALLBACK = process.env.NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK === 'true';
+const ENABLE_SERVER_TTS = process.env.NEXT_PUBLIC_ENABLE_SERVER_TTS === 'true';
 const VOICE_PREVIEW_TEXT = '안녕하세요. 지금 선택한 목소리로 말하고 있어요.';
 
 function statusText(step: Step, autoStopReady: boolean) {
@@ -230,11 +232,11 @@ export default function VoiceAssistant() {
     }
   }
 
-  function scheduleRecognitionFinish() {
+  function scheduleRecognitionFinish(delayMs = BROWSER_SPEECH_SILENCE_LIMIT_MS) {
     clearRecognitionFinishTimer();
     recognitionFinishTimerRef.current = window.setTimeout(() => {
       finishBrowserSpeechRecognition();
-    }, BROWSER_SPEECH_SILENCE_LIMIT_MS);
+    }, delayMs);
   }
 
   function finishBrowserSpeechRecognition() {
@@ -415,6 +417,11 @@ export default function VoiceAssistant() {
     window.speechSynthesis?.cancel();
     audioRef.current?.pause();
 
+    if (!ENABLE_SERVER_TTS) {
+      speakWithBrowser(text);
+      return;
+    }
+
     try {
       const response = await fetch('/api/speech', {
         method: 'POST',
@@ -514,7 +521,9 @@ export default function VoiceAssistant() {
       recognitionLiveTextRef.current = liveText.trim();
       if (finalText.trim()) recognitionFinalTextRef.current = finalText.trim();
       if (recognitionLiveTextRef.current) setTranscript(recognitionLiveTextRef.current);
-      if (recognitionLiveTextRef.current || recognitionFinalTextRef.current) scheduleRecognitionFinish();
+      if (recognitionLiveTextRef.current || recognitionFinalTextRef.current) {
+        scheduleRecognitionFinish(finalText.trim() ? BROWSER_SPEECH_FINAL_SILENCE_LIMIT_MS : undefined);
+      }
     };
 
     recognition.onerror = (event) => {

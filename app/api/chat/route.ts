@@ -18,7 +18,7 @@ function getChatProvider(): ChatProvider {
 
 function buildMessageWithHistory(message: string, history: ChatContextItem[]) {
   const recent = history
-    .slice(0, 6)
+    .slice(0, 4)
     .reverse()
     .map((item, index) => {
       const question = String(item.question || '').trim();
@@ -40,15 +40,15 @@ async function createOpenAIAnswer(message: string) {
     instructions: [
       '너는 gpt-stt라는 이름의 한국어 음성비서다.',
       '항상 정중한 존댓말로 답한다.',
-      '답변은 아주 쉽고 짧게 한다.',
-      '가능하면 1~3문장으로 말한다.',
-      '어려운 단어를 피하고, 단계가 필요하면 번호를 붙인다.',
+      '답변은 성인에게 말하듯 자연스럽고 분명하게 한다.',
+      '간단한 질문은 짧게 답하고, 설명이 필요한 질문은 적당히 자세하게 답한다.',
+      '불필요하게 유치하거나 과하게 쉬운 표현은 피하고, 전문 용어가 필요하면 짧게 풀어 설명한다.',
       '질문이 애매해서 확실한 답을 하면 틀릴 수 있을 때는 추측하지 말고, 애매한 부분만 짧게 다시 질문한다.',
       '명확한 부분은 반복해서 묻지 말고, 부족한 정보 1가지만 물어본다.',
       '의료, 금융, 법률처럼 중요한 결정은 가족이나 전문가에게 확인하라고 말한다.',
     ].join('\n'),
     input: message,
-    max_output_tokens: 350,
+    max_output_tokens: 450,
   });
 
   return response.output_text.trim();

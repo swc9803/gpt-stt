@@ -20,5 +20,8 @@
     "react": "latest",
     "react-dom": "latest",
     "typescript": "latest"
+  },
+  "devDependencies": {
+    "sass": "^1.100.0"
   }
 }
