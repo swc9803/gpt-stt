@@ -126,3 +126,117 @@
 [debug] [2026-06-03T12:34:11.871Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/channels/live/releases versionName=projects%2F698749811792%2Fsites%2Fgpt-stt-parent%2Fversions%2Fcb9f56e7768595fd
 [debug] [2026-06-03T12:34:11.871Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/channels/live/releases {}
 [debug] [2026-06-03T12:34:12.630Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/channels/live/releases 200
+[debug] [2026-06-04T11:04:58.257Z] ----------------------------------------------------------------------
+[debug] [2026-06-04T11:04:58.261Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\user\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting
+[debug] [2026-06-04T11:04:58.262Z] CLI Version:   14.6.0
+[debug] [2026-06-04T11:04:58.262Z] Platform:      win32
+[debug] [2026-06-04T11:04:58.262Z] Node Version:  v22.17.1
+[debug] [2026-06-04T11:04:58.262Z] Time:          Thu Jun 04 2026 20:04:58 GMT+0900 (대한민국 표준시)
+[debug] [2026-06-04T11:04:58.263Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-04T11:04:58.511Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-04T11:04:58.512Z] > authorizing via signed-in user (swc9803@gmail.com)
+[debug] [2026-06-04T11:04:58.513Z] [iam] checking project gpt-stt-parent for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-06-04T11:04:58.514Z] Checked if tokens are valid: false, expires at: 1780493064012
+[debug] [2026-06-04T11:04:58.514Z] Checked if tokens are valid: false, expires at: 1780493064012
+[debug] [2026-06-04T11:04:58.515Z] > refreshing access token with scopes: []
+[debug] [2026-06-04T11:04:58.517Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-06-04T11:04:58.517Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-04T11:04:58.782Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-06-04T11:04:58.782Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-04T11:04:58.788Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/gpt-stt-parent:testIamPermissions [none]
+[debug] [2026-06-04T11:04:58.788Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/gpt-stt-parent:testIamPermissions x-goog-quota-user=projects/gpt-stt-parent
+[debug] [2026-06-04T11:04:58.788Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/gpt-stt-parent:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-06-04T11:04:58.992Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/gpt-stt-parent:testIamPermissions 200
+[debug] [2026-06-04T11:04:58.992Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/gpt-stt-parent:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-06-04T11:04:58.993Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:04:58.993Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:04:58.993Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/gpt-stt-parent [none]
+[debug] [2026-06-04T11:04:59.419Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/gpt-stt-parent 200
+[debug] [2026-06-04T11:04:59.419Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/gpt-stt-parent {"projectId":"gpt-stt-parent","projectNumber":"698749811792","displayName":"GPT STT Parent","name":"projects/gpt-stt-parent","resources":{"hostingSite":"gpt-stt-parent"},"state":"ACTIVE","etag":"1_f3a9c257-3989-4898-b5c5-5faa225715a6"}
+[info] 
+[info] === Deploying to 'gpt-stt-parent'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2026-06-04T11:04:59.423Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:04:59.423Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:04:59.423Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/versions [none]
+[debug] [2026-06-04T11:04:59.423Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2026-06-04T11:05:00.584Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/versions 200
+[debug] [2026-06-04T11:05:00.584Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/versions {"name":"projects/698749811792/sites/gpt-stt-parent/versions/83ebd9efba99bb20","status":"CREATED","config":{},"labels":{"deployment-tool":"cli-firebase"}}
+[info] i  hosting[gpt-stt-parent]: beginning deploy... 
+[info] i  hosting[gpt-stt-parent]: found 3 files in public 
+[debug] [2026-06-04T11:05:00.599Z] [hosting] uploading with 200 concurrency
+[debug] [2026-06-04T11:05:00.601Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:05:00.602Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:05:00.603Z] [hosting] hash cache [cHVibGlj] stored for 3 files
+[debug] [2026-06-04T11:05:00.603Z] [hosting][hash queue][FINAL] {"max":0,"min":0,"avg":0,"active":0,"complete":3,"success":3,"errored":0,"retried":0,"total":3,"elapsed":3}
+[debug] [2026-06-04T11:05:00.603Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/698749811792/sites/gpt-stt-parent/versions/83ebd9efba99bb20:populateFiles [none]
+[debug] [2026-06-04T11:05:00.603Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/698749811792/sites/gpt-stt-parent/versions/83ebd9efba99bb20:populateFiles {"files":{"/sw.js":"e6e02739e018e67960515d059a3e76106b1aa8ee5b5751fe2f04b0bd62e432aa","/manifest.webmanifest":"a3b81a02588ef25a51b3720dc645181df79f414ce1d2e7e42dad0b9f97aeb196","/icons/icon.svg":"79b9011b2bb6f58e497ab0f4ddf83ead059129405bcf1a79c3fe8bc2ddfa9040"}}
+[debug] [2026-06-04T11:05:01.535Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/698749811792/sites/gpt-stt-parent/versions/83ebd9efba99bb20:populateFiles 200
+[debug] [2026-06-04T11:05:01.535Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/698749811792/sites/gpt-stt-parent/versions/83ebd9efba99bb20:populateFiles {"uploadUrl":"https://upload-firebasehosting.googleapis.com/upload/sites/gpt-stt-parent/versions/83ebd9efba99bb20/files"}
+[debug] [2026-06-04T11:05:01.535Z] [hosting][populate queue][FINAL] {"max":934,"min":934,"avg":934,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":934}
+[debug] [2026-06-04T11:05:01.536Z] [hosting] uploads queued: 0
+[debug] [2026-06-04T11:05:01.536Z] [hosting][upload queue][FINAL] {"max":0,"min":9999999999,"avg":0,"active":0,"complete":0,"success":0,"errored":0,"retried":0,"total":0,"elapsed":1780571101536}
+[info] i  hosting: upload complete 
+[info] +  hosting[gpt-stt-parent]: file upload complete 
+[debug] [2026-06-04T11:05:01.536Z] [hosting] deploy completed after 949ms
+[debug] [2026-06-04T11:05:01.537Z] [
+  {
+    "config": {
+      "public": "public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "source": "/sw.js",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-store, max-age=0"
+            }
+          ]
+        }
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "run": {
+            "serviceId": "gpt-stt",
+            "region": "asia-northeast3"
+          }
+        }
+      ],
+      "site": "gpt-stt-parent"
+    },
+    "version": "projects/698749811792/sites/gpt-stt-parent/versions/83ebd9efba99bb20"
+  }
+]
+[info] i  hosting[gpt-stt-parent]: finalizing version... 
+[debug] [2026-06-04T11:05:01.538Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:05:01.538Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:05:01.538Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v1/projects/gpt-stt-parent/locations/-/functions [none]
+[debug] [2026-06-04T11:05:02.404Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v1/projects/gpt-stt-parent/locations/-/functions 200
+[debug] [2026-06-04T11:05:02.404Z] <<< [apiv2][body] GET https://cloudfunctions.googleapis.com/v1/projects/gpt-stt-parent/locations/-/functions {}
+[debug] [2026-06-04T11:05:02.405Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:05:02.405Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:05:02.405Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v2/projects/gpt-stt-parent/locations/-/functions filter=environment%3D%22GEN_2%22
+[debug] [2026-06-04T11:05:03.976Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v2/projects/gpt-stt-parent/locations/-/functions 200
+[debug] [2026-06-04T11:05:03.976Z] <<< [apiv2][body] GET https://cloudfunctions.googleapis.com/v2/projects/gpt-stt-parent/locations/-/functions {"functions":[{"name":"projects/gpt-stt-parent/locations/asia-northeast3/functions/billing-kill-switch","buildConfig":{"build":"projects/698749811792/locations/asia-northeast3/builds/9aa00d90-6941-4b9e-8375-680f8dd340a1","runtime":"nodejs22","entryPoint":"stopBilling","source":{"storageSource":{"bucket":"gcf-v2-sources-698749811792-asia-northeast3","object":"billing-kill-switch/function-source.zip","generation":"1780531253892107"}},"dockerRepository":"projects/gpt-stt-parent/locations/asia-northeast3/repositories/gcf-artifacts","sourceProvenance":{"resolvedStorageSource":{"bucket":"gcf-v2-sources-698749811792-asia-northeast3","object":"billing-kill-switch/function-source.zip","generation":"1780531253892107"}},"dockerRegistry":"ARTIFACT_REGISTRY","serviceAccount":"projects/gpt-stt-parent/serviceAccounts/698749811792-compute@developer.gserviceaccount.com","automaticUpdatePolicy":{}},"serviceConfig":{"service":"projects/gpt-stt-parent/locations/asia-northeast3/services/billing-kill-switch","timeoutSeconds":60,"environmentVariables":{"TARGET_PROJECT_ID":"gpt-stt-parent","LOG_EXECUTION_ID":"true"},"maxInstanceCount":1,"ingressSettings":"ALLOW_ALL","uri":"https://billing-kill-switch-6nmbtxc4la-du.a.run.app","serviceAccountEmail":"billing-kill-switch@gpt-stt-parent.iam.gserviceaccount.com","availableMemory":"256Mi","allTrafficOnLatestRevision":true,"revision":"billing-kill-switch-00002-foy","maxInstanceRequestConcurrency":1,"availableCpu":"0.1666"},"eventTrigger":{"trigger":"projects/gpt-stt-parent/locations/asia-northeast3/triggers/billing-kill-switch-030460","triggerRegion":"asia-northeast3","eventType":"google.cloud.pubsub.topic.v1.messagePublished","pubsubTopic":"projects/gpt-stt-parent/topics/billing-kill-switch","serviceAccountEmail":"billing-kill-switch@gpt-stt-parent.iam.gserviceaccount.com","retryPolicy":"RETRY_POLICY_DO_NOT_RETRY"},"state":"ACTIVE","updateTime":"2026-06-04T00:01:45.859866451Z","labels":{"deployment-tool":"cli-gcloud"},"environment":"GEN_2","url":"https://asia-northeast3-gpt-stt-parent.cloudfunctions.net/billing-kill-switch","satisfiesPzs":true,"createTime":"2026-06-03T23:58:58.245001957Z","satisfiesPzi":true}]}
+[debug] [2026-06-04T11:05:03.978Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:05:03.978Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:05:03.978Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/versions/83ebd9efba99bb20 updateMask=status%2Cconfig
+[debug] [2026-06-04T11:05:03.978Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/versions/83ebd9efba99bb20 {"status":"FINALIZED","config":{"rewrites":[{"glob":"**","run":{"serviceId":"gpt-stt","region":"asia-northeast3"}}],"headers":[{"glob":"/sw.js","headers":{"Cache-Control":"no-store, max-age=0"}}]}}
+[debug] [2026-06-04T11:05:05.080Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/versions/83ebd9efba99bb20 200
+[debug] [2026-06-04T11:05:05.080Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/versions/83ebd9efba99bb20 {"name":"projects/698749811792/sites/gpt-stt-parent/versions/83ebd9efba99bb20","status":"FINALIZED","config":{"headers":[{"headers":{"Cache-Control":"no-store, max-age=0"},"glob":"/sw.js"}],"rewrites":[{"glob":"**","run":{"serviceId":"gpt-stt","region":"asia-northeast3"}}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-06-04T11:04:56.920643Z","createUser":{"email":"swc9803@gmail.com"},"finalizeTime":"2026-06-04T11:05:01.861002Z","finalizeUser":{"email":"swc9803@gmail.com"}}
+[debug] [2026-06-04T11:05:05.080Z] [hosting] finalized version for gpt-stt-parent:[object Object]
+[info] +  hosting[gpt-stt-parent]: version finalized 
+[info] i  hosting[gpt-stt-parent]: releasing new version... 
+[debug] [2026-06-04T11:05:05.081Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:05:05.081Z] Checked if tokens are valid: true, expires at: 1780574697782
+[debug] [2026-06-04T11:05:05.081Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/channels/live/releases versionName=projects%2F698749811792%2Fsites%2Fgpt-stt-parent%2Fversions%2F83ebd9efba99bb20
+[debug] [2026-06-04T11:05:05.081Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/channels/live/releases {}
+[debug] [2026-06-04T11:05:05.916Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/gpt-stt-parent/channels/live/releases 200

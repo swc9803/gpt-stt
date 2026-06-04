@@ -134,6 +134,17 @@ select {
   line-height: 1.48;
 }
 
+.answerBubble {
+  overflow-wrap: anywhere;
+
+  a {
+    color: var(--primary-dark);
+    font-weight: 750;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+}
+
 .empty {
   color: #9ca3af;
 }

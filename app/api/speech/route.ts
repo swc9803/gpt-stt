@@ -3,6 +3,8 @@ import { DEFAULT_ELEVENLABS_MODEL_ID, isElevenLabsModelId } from '../../elevenla
 
 export const runtime = 'nodejs';
 
+const DEFAULT_ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
+
 type SpeechRequest = { text?: string; modelId?: string };
 
 function getNumberEnv(name: string, fallback: number) {
@@ -64,9 +66,8 @@ function getElevenLabsError(err: unknown) {
 
 async function createElevenLabsSpeech(text: string, modelId: string) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || DEFAULT_ELEVENLABS_VOICE_ID;
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY is not configured.');
-  if (!voiceId) throw new Error('ELEVENLABS_VOICE_ID is not configured.');
 
   if (modelId && !isElevenLabsModelId(modelId)) {
     const error = new Error('지원하지 않는 ElevenLabs 모델입니다.');

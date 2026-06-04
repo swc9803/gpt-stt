@@ -3,6 +3,8 @@ import { DEFAULT_ELEVENLABS_MODEL_ID, ELEVENLABS_MODEL_OPTIONS, isElevenLabsMode
 
 export const runtime = 'nodejs';
 
+const DEFAULT_ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
+
 export async function GET() {
   const envTtsModel = process.env.ELEVENLABS_MODEL_ID || '';
   const ttsModel = isElevenLabsModelId(envTtsModel) ? envTtsModel : DEFAULT_ELEVENLABS_MODEL_ID;
@@ -16,7 +18,7 @@ export async function GET() {
     ttsModel,
     ttsModels: ELEVENLABS_MODEL_OPTIONS,
     ttsProvider: 'elevenlabs',
-    ttsVoice: process.env.ELEVENLABS_VOICE_ID || null,
+    ttsVoice: process.env.ELEVENLABS_VOICE_ID || DEFAULT_ELEVENLABS_VOICE_ID,
     serverTts: process.env.ENABLE_SERVER_TTS !== 'false',
   });
 }

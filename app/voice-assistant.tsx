@@ -37,6 +37,10 @@ type HealthResponse = {
   ttsModel?: string;
   ttsModels?: ElevenLabsModelOption[];
 };
+type ChatStreamEvent =
+  | { type: 'delta'; delta: string }
+  | { type: 'done'; answer: string }
+  | { type: 'error'; error: string };
 
 const SILENCE_LIMIT_MS = 2400;
 const BROWSER_SPEECH_SILENCE_LIMIT_MS = 1600;
@@ -85,15 +89,109 @@ function getBrowserSpeechRecognition() {
   return window.SpeechRecognition || window.webkitSpeechRecognition;
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
+async function streamChatAnswer(
+  body: { message: string; history: { question?: string; answer?: string }[] },
+  onDelta: (delta: string, answer: string) => void,
+) {
+  const response = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, stream: true }),
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.error || '요청 처리에 실패했습니다.');
-  return data as T;
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.error || '요청 처리에 실패했습니다.');
+  }
+  if (!response.body) throw new Error('답변 스트림을 열지 못했습니다.');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let answer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop() || '';
+
+    for (const eventText of events) {
+      const dataLine = eventText
+        .split('\n')
+        .find((line) => line.startsWith('data: '));
+      if (!dataLine) continue;
+
+      const event = JSON.parse(dataLine.slice(6)) as ChatStreamEvent;
+      if (event.type === 'delta') {
+        answer += event.delta;
+        onDelta(event.delta, answer);
+      }
+      if (event.type === 'done') {
+        return event.answer || answer;
+      }
+      if (event.type === 'error') throw new Error(event.error);
+    }
+  }
+
+  return answer;
+}
+
+function getSpeechText(text: string) {
+  return text
+    .replace(/\[([^\]\n]+)\]\(https?:\/\/[^\s)]+\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/【[^】]*】/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function getSafeHttpUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+function getReadableUrlLabel(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+function renderLinkedText(text: string) {
+  const parts: React.ReactNode[] = [];
+  const pattern = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const [raw, markdownLabel, markdownUrl, rawUrl] = match;
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+
+    const url = getSafeHttpUrl(markdownUrl || rawUrl || '');
+    if (url) {
+      parts.push(
+        <a key={`${url}-${match.index}`} href={url} target="_blank" rel="noreferrer">
+          {markdownLabel || getReadableUrlLabel(url)}
+        </a>,
+      );
+    } else {
+      parts.push(raw);
+    }
+
+    lastIndex = match.index + raw.length;
+  }
+
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts.length > 0 ? parts : text;
 }
 
 function createSessionId() {
@@ -445,15 +543,21 @@ export default function VoiceAssistant() {
     if (!cleanText) throw new Error('말소리를 인식하지 못했습니다. 다시 한 번 또렷하게 말씀해 주세요.');
 
     setTranscript(cleanText);
+    setAnswer('');
     setStep('thinking');
     const context = getContextForMessage(cleanText);
-    const chat = await postJson<{ answer: string }>('/api/chat', {
+    const reply = await streamChatAnswer({
       message: cleanText,
       history: context.turns,
+    }, (_delta, nextAnswer) => {
+      setAnswer(nextAnswer);
     });
-    setAnswer(chat.answer);
-    addHistory(cleanText, chat.answer, context.sessionId);
-    await speak(chat.answer);
+    const finalReply = reply.trim();
+    if (!finalReply) throw new Error('답변이 비어 있습니다. 다시 한 번 질문해 주세요.');
+
+    setAnswer(finalReply);
+    addHistory(cleanText, finalReply, context.sessionId);
+    void speak(finalReply);
   }
 
   function startSilenceMonitor(stream: MediaStream) {
@@ -499,7 +603,8 @@ export default function VoiceAssistant() {
   }
 
   async function speak(text: string) {
-    if (!text) return;
+    const speechText = getSpeechText(text);
+    if (!speechText) return;
     setStep('speaking');
     setError('');
     audioRef.current?.pause();
@@ -514,7 +619,7 @@ export default function VoiceAssistant() {
       const response = await fetch('/api/speech', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text, modelId: selectedTtsModel }),
+        body: JSON.stringify({ text: speechText, modelId: selectedTtsModel }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -787,7 +892,9 @@ export default function VoiceAssistant() {
 
         <section className="panel card">
           <h2>답변</h2>
-          <div className={`bubble ${answer ? '' : 'empty'}`}>{answer || '답변이 여기에 표시됩니다.'}</div>
+          <div className={`bubble answerBubble ${answer ? '' : 'empty'}`}>
+            {answer ? renderLinkedText(answer) : '답변이 여기에 표시됩니다.'}
+          </div>
           <div className="voiceControls">
             <div className="voiceRow">
               <span className="voiceLabel">목소리</span>
