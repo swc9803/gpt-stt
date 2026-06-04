@@ -5,13 +5,6 @@ import { useEffect, useRef, useState } from 'react';
 type Step = 'idle' | 'recording' | 'transcribing' | 'thinking' | 'speaking';
 type HistoryTurn = { question: string; answer: string; at: number };
 type HistorySession = { id: string; title: string; turns: HistoryTurn[]; updatedAt: number };
-type VoiceOption = {
-  id: string;
-  name: string;
-  lang: string;
-  localService: boolean;
-  default: boolean;
-};
 type BrowserSpeechRecognitionEvent = {
   resultIndex: number;
   results: ArrayLike<{
@@ -32,18 +25,19 @@ type BrowserSpeechRecognition = {
   onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null;
 };
 type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+type HealthResponse = {
+  serverTts?: boolean;
+};
 
 const SILENCE_LIMIT_MS = 2400;
 const BROWSER_SPEECH_SILENCE_LIMIT_MS = 1600;
 const BROWSER_SPEECH_FINAL_SILENCE_LIMIT_MS = 700;
 const SILENCE_THRESHOLD = 0.018;
 const HISTORY_KEY = 'gpt-stt-history-v1';
-const VOICE_KEY = 'gpt-stt-voice-v1';
 const SW_CLEANUP_KEY = 'gpt-stt-sw-cleaned-v1';
 const MAX_HISTORY_SESSIONS = 8;
 const MAX_CONTEXT_TURNS = 4;
 const ENABLE_OPENAI_STT_FALLBACK = process.env.NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK === 'true';
-const ENABLE_SERVER_TTS = process.env.NEXT_PUBLIC_ENABLE_SERVER_TTS === 'true';
 const VOICE_PREVIEW_TEXT = '안녕하세요. 지금 선택한 목소리로 말하고 있어요.';
 const TOPIC_STOP_WORDS = new Set([
   '가족',
@@ -79,27 +73,6 @@ function statusText(step: Step, autoStopReady: boolean) {
 
 function getBrowserSpeechRecognition() {
   return window.SpeechRecognition || window.webkitSpeechRecognition;
-}
-
-function getVoiceId(voice: SpeechSynthesisVoice) {
-  return `${voice.name}__${voice.lang}`;
-}
-
-function getVoiceScore(voice: SpeechSynthesisVoice) {
-  const name = voice.name.toLowerCase();
-  const lang = voice.lang.toLowerCase();
-  let score = 0;
-
-  if (lang === 'ko-kr') score += 80;
-  else if (lang.startsWith('ko')) score += 60;
-  if (name.includes('korean') || name.includes('한국') || name.includes('대한민국')) score += 25;
-  if (name.includes('natural') || name.includes('online') || name.includes('neural')) score += 35;
-  if (name.includes('microsoft')) score += 24;
-  if (name.includes('google')) score += 18;
-  if (!voice.localService) score += 8;
-  if (voice.default) score += 4;
-
-  return score;
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -232,9 +205,8 @@ export default function VoiceAssistant() {
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<string[]>([]);
   const [isHistoryDeleteMode, setIsHistoryDeleteMode] = useState(false);
   const [autoStopReady, setAutoStopReady] = useState(false);
-  const [voices, setVoices] = useState<VoiceOption[]>([]);
-  const [selectedVoiceId, setSelectedVoiceId] = useState('');
   const [typedQuestion, setTypedQuestion] = useState('');
+  const [serverTtsEnabled, setServerTtsEnabled] = useState(true);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -279,17 +251,12 @@ export default function VoiceAssistant() {
       }
     }
 
-    loadVoices();
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
+    void loadTtsConfig();
 
     return () => {
-      if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = null;
       clearRecognitionFinishTimer();
       recognitionRef.current?.abort();
       cleanupRecordingResources();
-      window.speechSynthesis?.cancel();
       audioRef.current?.pause();
     };
   }, []);
@@ -314,51 +281,19 @@ export default function VoiceAssistant() {
     }
   }
 
-  function loadVoices() {
-    if (!('speechSynthesis' in window)) return;
-
-    const availableVoices = window.speechSynthesis.getVoices();
-    const options = availableVoices
-      .filter((voice) => voice.lang.toLowerCase().startsWith('ko') || /korean|한국|대한민국/i.test(voice.name))
-      .sort((a, b) => getVoiceScore(b) - getVoiceScore(a))
-      .map((voice) => ({
-        id: getVoiceId(voice),
-        name: voice.name,
-        lang: voice.lang,
-        localService: voice.localService,
-        default: voice.default,
-      }));
-
-    setVoices(options);
-    setSelectedVoiceId((current) => {
-      const saved = window.localStorage.getItem(VOICE_KEY) || '';
-      const next = current || saved;
-      if (next && options.some((voice) => voice.id === next)) return next;
-      return options[0]?.id || '';
-    });
-  }
-
-  function findSelectedVoice() {
-    if (!('speechSynthesis' in window)) return undefined;
-
-    const availableVoices = window.speechSynthesis.getVoices();
-    const saved = window.localStorage.getItem(VOICE_KEY) || '';
-    const preferredId = selectedVoiceId || saved;
-    const selected = availableVoices.find((voice) => getVoiceId(voice) === preferredId);
-    if (selected) return selected;
-
-    return availableVoices
-      .filter((voice) => voice.lang.toLowerCase().startsWith('ko') || /korean|한국|대한민국/i.test(voice.name))
-      .sort((a, b) => getVoiceScore(b) - getVoiceScore(a))[0];
-  }
-
-  function changeVoice(voiceId: string) {
-    setSelectedVoiceId(voiceId);
-    window.localStorage.setItem(VOICE_KEY, voiceId);
+  async function loadTtsConfig() {
+    try {
+      const response = await fetch('/api/health');
+      if (!response.ok) return;
+      const data = await response.json() as HealthResponse;
+      setServerTtsEnabled(data.serverTts !== false);
+    } catch {
+      setServerTtsEnabled(true);
+    }
   }
 
   function previewVoice() {
-    speakWithBrowser(VOICE_PREVIEW_TEXT);
+    void speak(VOICE_PREVIEW_TEXT);
   }
 
   function clearRecognitionFinishTimer() {
@@ -539,32 +474,15 @@ export default function VoiceAssistant() {
     rafRef.current = requestAnimationFrame(tick);
   }
 
-  function speakWithBrowser(text: string) {
-    if (!('speechSynthesis' in window)) {
-      setStep('idle');
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voice = findSelectedVoice();
-    if (voice) utterance.voice = voice;
-    utterance.lang = 'ko-KR';
-    utterance.rate = 0.96;
-    utterance.pitch = 1.02;
-    utterance.onend = () => setStep('idle');
-    utterance.onerror = () => setStep('idle');
-    window.speechSynthesis.speak(utterance);
-  }
-
   async function speak(text: string) {
     if (!text) return;
     setStep('speaking');
     setError('');
-    window.speechSynthesis?.cancel();
     audioRef.current?.pause();
 
-    if (!ENABLE_SERVER_TTS) {
-      speakWithBrowser(text);
+    if (!serverTtsEnabled) {
+      setError('ElevenLabs TTS가 꺼져 있습니다.');
+      setStep('idle');
       return;
     }
 
@@ -574,7 +492,10 @@ export default function VoiceAssistant() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ text }),
       });
-      if (!response.ok) throw new Error('server-tts-unavailable');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || 'ElevenLabs 음성 생성에 실패했습니다.');
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
@@ -585,11 +506,13 @@ export default function VoiceAssistant() {
       };
       audio.onerror = () => {
         URL.revokeObjectURL(url);
-        speakWithBrowser(text);
+        setError('ElevenLabs 음성을 재생하지 못했습니다.');
+        setStep('idle');
       };
       await audio.play();
-    } catch {
-      speakWithBrowser(text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ElevenLabs 음성 생성에 실패했습니다.');
+      setStep('idle');
     }
   }
 
@@ -597,7 +520,6 @@ export default function VoiceAssistant() {
     setError('');
     setTranscript('');
     setAnswer('');
-    window.speechSynthesis?.cancel();
     audioRef.current?.pause();
     clearRecognitionFinishTimer();
     recognitionFinishingRef.current = false;
@@ -774,7 +696,6 @@ export default function VoiceAssistant() {
     setError('');
     setAnswer('');
     setTypedQuestion('');
-    window.speechSynthesis?.cancel();
     audioRef.current?.pause();
 
     void answerFromText(text).catch((err) => {
@@ -843,28 +764,14 @@ export default function VoiceAssistant() {
         <section className="panel card">
           <h2>답변</h2>
           <div className={`bubble ${answer ? '' : 'empty'}`}>{answer || '답변이 여기에 표시됩니다.'}</div>
-          {voices.length > 0 ? (
-            <div className="voiceControls">
-              <label className="voiceLabel" htmlFor="voice-select">목소리</label>
-              <select
-                id="voice-select"
-                className="voiceSelect"
-                value={selectedVoiceId}
-                onChange={(event) => changeVoice(event.target.value)}
-                disabled={step === 'recording'}
-              >
-                {voices.map((voice) => (
-                  <option key={voice.id} value={voice.id}>
-                    {voice.name} ({voice.lang})
-                  </option>
-                ))}
-              </select>
-              <button className="voicePreview" onClick={previewVoice} disabled={step === 'recording'}>미리듣기</button>
-            </div>
-          ) : null}
+          <div className="voiceControls">
+            <span className="voiceLabel">목소리</span>
+            <span className="serverVoiceBadge">ElevenLabs</span>
+            <button className="voicePreview" onClick={previewVoice} disabled={step === 'recording' || !serverTtsEnabled}>미리듣기</button>
+          </div>
           <div className="actions">
             <button className="actionButton" onClick={() => void speak(answer)} disabled={!answer || step === 'recording'}>다시 듣기</button>
-            <button className="actionButton secondary" onClick={() => { sessionIdRef.current = createSessionId(); setTranscript(''); setAnswer(''); setError(''); window.speechSynthesis?.cancel(); audioRef.current?.pause(); setStep('idle'); }}>초기화</button>
+            <button className="actionButton secondary" onClick={() => { sessionIdRef.current = createSessionId(); setTranscript(''); setAnswer(''); setError(''); audioRef.current?.pause(); setStep('idle'); }}>초기화</button>
           </div>
         </section>
 

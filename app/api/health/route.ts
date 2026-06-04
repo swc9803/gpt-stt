@@ -9,7 +9,9 @@ export async function GET() {
     chatProvider: process.env.CHAT_PROVIDER || process.env.AI_CHAT_PROVIDER || 'openai',
     codexModel: process.env.HERMES_CODEX_MODEL || null,
     sttModel: process.env.OPENAI_STT_MODEL || 'gpt-4o-mini-transcribe',
-    ttsModel: process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts',
-    serverTts: process.env.ENABLE_SERVER_TTS === 'true',
+    ttsModel: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
+    ttsProvider: 'elevenlabs',
+    ttsVoice: process.env.ELEVENLABS_VOICE_ID || null,
+    serverTts: process.env.ENABLE_SERVER_TTS !== 'false',
   });
 }

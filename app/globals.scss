@@ -241,7 +241,7 @@ select {
   font-weight: 800;
 }
 
-.voiceSelect {
+.serverVoiceBadge {
   min-width: 0;
   width: 100%;
   border: 1px solid var(--border);
@@ -250,12 +250,7 @@ select {
   color: var(--text);
   padding: 12px 13px;
   font-size: 15px;
-  font-weight: 700;
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  font-weight: 800;
 }
 
 .voicePreview {
