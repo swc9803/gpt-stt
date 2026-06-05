@@ -887,7 +887,9 @@ export default function VoiceAssistant() {
 
         <section className="panel card">
           <h2>질문</h2>
-          <div className={`bubble ${transcript ? '' : 'empty'}`}>{transcript}</div>
+          <div className={`bubble questionBubble ${transcript ? '' : 'empty'}`}>
+            {transcript ? <strong>{transcript}</strong> : null}
+          </div>
         </section>
 
         <section className="panel card">
@@ -985,7 +987,14 @@ export default function VoiceAssistant() {
                     <strong>{session.title || '새 대화'}</strong>
                   </button>
                   {expandedHistoryId === session.id ? (
-                    <span>{session.turns.map((item) => `${item.question}\n${item.answer}`).join('\n\n')}</span>
+                    <div className="historyTurns">
+                      {session.turns.map((item) => (
+                        <div className="historyTurn" key={`${item.at}-${item.question}`}>
+                          <strong>{item.question}</strong>
+                          <span>{renderLinkedText(item.answer)}</span>
+                        </div>
+                      ))}
+                    </div>
                   ) : null}
                 </div>
               ))}
