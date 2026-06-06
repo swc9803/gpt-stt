@@ -130,8 +130,14 @@ select {
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 16px;
-  font-size: clamp(18px, 4.8vw, 26px);
+  font-size: clamp(15px, 3.8vw, 19px);
   line-height: 1.48;
+}
+
+.questionBubble {
+  strong {
+    font-weight: 850;
+  }
 }
 
 .answerBubble {
@@ -389,7 +395,7 @@ select {
   &.selecting {
     grid-template-columns: auto minmax(0, 1fr);
 
-    span {
+    .historyTurns {
       grid-column: 2;
     }
   }
@@ -404,12 +410,31 @@ select {
     line-height: 1.35;
   }
 
-  span {
+  .historyTurns {
     grid-column: 1;
+    display: grid;
+    gap: 12px;
+  }
+}
+
+.historyTurn {
+  display: grid;
+  gap: 5px;
+
+  strong {
+    font-weight: 850;
+  }
+
+  span {
     color: var(--muted);
     font-size: 15px;
     line-height: 1.35;
     white-space: pre-wrap;
+  }
+
+  a {
+    color: var(--primary-dark);
+    font-weight: 750;
   }
 }
 

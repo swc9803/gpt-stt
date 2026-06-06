@@ -14,6 +14,9 @@ type ChatStreamEvent =
   | { type: 'done'; answer: string }
   | { type: 'error'; error: string };
 
+const REFERENCE_TOPIC_PATTERN = /(가격|얼마|시세|최저가|구매|판매|상품|쇼핑|배송|브랜드|용량|텀블러|스탠리|스타벅스|다이소|쿠팡|네이버)/u;
+const URL_PATTERN = /https?:\/\/|\]\(https?:\/\//;
+
 function getChatProvider(): ChatProvider {
   const provider = (process.env.CHAT_PROVIDER || process.env.AI_CHAT_PROVIDER || 'openai').toLowerCase();
   if (provider === 'hermes-codex' || provider === 'codex') return 'hermes-codex';
@@ -48,7 +51,9 @@ function getAnswerInstructions() {
     '너는 gpt-stt라는 이름의 한국어 음성비서다.',
     '항상 정중한 존댓말로 답한다.',
     '답변은 성인에게 말하듯 자연스럽고 분명하게 한다.',
-    '간단한 질문은 짧게 답하고, 설명이 필요한 질문은 적당히 자세하게 답한다.',
+    '간단한 질문은 짧게 답하되, 가격/상품/장소처럼 정보가 필요한 질문은 너무 짧게 끝내지 않는다.',
+    '가격이나 상품 질문은 보통 가격대, 가격이 달라지는 기준, 구매/확인 링크를 함께 준다.',
+    '브랜드나 용량이 부족해도 먼저 일반적인 가격대와 확인 방법을 알려준 뒤, 더 정확한 조건 1가지를 물어본다.',
     '사용자가 자세히 알려 달라고 하면 이전 답을 반복하지 말고 필요한 재료, 순서, 주의점을 더 구체적으로 알려준다.',
     '최근 대화가 있으면 같은 주제의 후속 질문을 이해하는 데 사용하되, 새 주제는 이전 대화에 억지로 연결하지 않는다.',
     '불필요하게 유치하거나 과하게 쉬운 표현은 피하고, 전문 용어가 필요하면 짧게 풀어 설명한다.',
@@ -59,6 +64,45 @@ function getAnswerInstructions() {
     '상품을 찾을 때는 가능하면 여러 판매처나 쇼핑몰을 비교하고, 가격/배송/구매 링크를 함께 준다.',
     '음식점이나 볼거리를 찾을 때는 위치, 특징, 방문 팁, 공식 페이지나 지도/예약 링크를 함께 준다.',
     '링크는 화면에 볼 수 있도록 URL이나 Markdown 링크로 남기되, 답변 문장 자체는 링크를 읽어야 이해되는 식으로 만들지 않는다.',
+  ].join('\n');
+}
+
+function stripHistoryLabels(text: string) {
+  return text
+    .replace(/\[[0-9]+\] 사용자:/g, ' ')
+    .replace(/현재 질문:/g, ' ')
+    .replace(/답변:/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getSearchQuery(originalMessage: string, history: ChatContextItem[]) {
+  const recentQuestion = String(history.at(-1)?.question || '').trim();
+  const combined = [recentQuestion, originalMessage]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/[^\w\s가-힣ㄱ-ㅎㅏ-ㅣ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return combined || stripHistoryLabels(originalMessage) || originalMessage;
+}
+
+function getReferenceLinks(originalMessage: string, history: ChatContextItem[], answer: string) {
+  const combined = `${history.map((item) => item.question || '').join(' ')} ${originalMessage}`;
+  if (!REFERENCE_TOPIC_PATTERN.test(combined)) return '';
+  if (URL_PATTERN.test(answer)) return '';
+
+  const query = getSearchQuery(originalMessage, history);
+  if (!query) return '';
+  const encodedQuery = encodeURIComponent(query);
+
+  return [
+    '',
+    '',
+    '참고 링크:',
+    `- [네이버 쇼핑 검색](https://search.shopping.naver.com/search/all?query=${encodedQuery})`,
+    `- [구글 검색](https://www.google.com/search?q=${encodedQuery})`,
   ].join('\n');
 }
 
@@ -112,7 +156,7 @@ function encodeChatStreamEvent(event: ChatStreamEvent) {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 }
 
-function createChatStream(message: string) {
+function createChatStream(message: string, originalMessage: string, history: ChatContextItem[]) {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       let answer = '';
@@ -125,6 +169,12 @@ function createChatStream(message: string) {
           answer = await createOpenAIAnswerStream(message, (delta) => {
             controller.enqueue(encodeChatStreamEvent({ type: 'delta', delta }));
           });
+        }
+
+        const referenceLinks = getReferenceLinks(originalMessage, history, answer);
+        if (referenceLinks) {
+          answer += referenceLinks;
+          controller.enqueue(encodeChatStreamEvent({ type: 'delta', delta: referenceLinks }));
         }
 
         controller.enqueue(encodeChatStreamEvent({ type: 'done', answer }));
@@ -149,7 +199,7 @@ export async function POST(request: Request) {
 
     const messageWithHistory = buildMessageWithHistory(message, history);
     if (body.stream) {
-      return new Response(createChatStream(messageWithHistory), {
+      return new Response(createChatStream(messageWithHistory, message, history), {
         headers: {
           'content-type': 'text/event-stream; charset=utf-8',
           'cache-control': 'no-store',
@@ -157,9 +207,10 @@ export async function POST(request: Request) {
       });
     }
 
-    const answer = getChatProvider() === 'hermes-codex'
+    let answer = getChatProvider() === 'hermes-codex'
       ? await createHermesCodexAnswer(messageWithHistory)
       : await createOpenAIAnswer(messageWithHistory);
+    answer += getReferenceLinks(message, history, answer);
 
     return NextResponse.json({ answer });
   } catch (err) {
