@@ -6,19 +6,24 @@ TTS는 ElevenLabs만 사용합니다.
 
 ```bash
 ELEVENLABS_API_KEY=your_api_key
-ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM
-ELEVENLABS_MODEL_ID=eleven_flash_v2_5
+ELEVENLABS_VOICE_ID=EXAVITQu4vr4xnSDxMaL
+ELEVENLABS_MODEL_ID=eleven_v3
 ELEVENLABS_OUTPUT_FORMAT=mp3_44100_128
 ```
 
-`ELEVENLABS_VOICE_ID`를 비워두면 여성 기본 음성인 Rachel(`21m00Tcm4TlvDq8ikWAM`)을 사용합니다. 모델은 속도/품질을 정하고, 남성/여성 같은 목소리 성격은 `ELEVENLABS_VOICE_ID`가 정합니다.
+목소리는 결제 없이 API에서 성공한 아래 음성만 사용합니다.
+
+- `EXAVITQu4vr4xnSDxMaL`: Sarah
+- `iP95p4xoKVk53GoZ742B`: Chris
+
+모델은 속도/품질을 정하고, 남성/여성 같은 목소리 성격은 `ELEVENLABS_VOICE_ID`가 정합니다.
 
 무료 플랜 포함 모델:
 
-- `eleven_flash_v2_5`: 빠른 대화용 기본값
+- `eleven_flash_v2_5`: 빠른 대화용
 - `eleven_turbo_v2_5`: 속도와 품질 균형
 - `eleven_multilingual_v2`: 자연스러운 한국어 음성
-- `eleven_v3`: 표현력 높은 음성
+- `eleven_v3`: 표현력 높은 음성, 기본값
 
 선택 조정값:
 

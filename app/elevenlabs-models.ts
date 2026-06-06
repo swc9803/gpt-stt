@@ -10,7 +10,7 @@ export type ElevenLabsModelOption = {
   detail: string;
 };
 
-export const DEFAULT_ELEVENLABS_MODEL_ID: ElevenLabsModelId = 'eleven_flash_v2_5';
+export const DEFAULT_ELEVENLABS_MODEL_ID: ElevenLabsModelId = 'eleven_v3';
 
 export const ELEVENLABS_MODEL_OPTIONS: ElevenLabsModelOption[] = [
   {

@@ -257,23 +257,7 @@ select {
   font-weight: 800;
 }
 
-.serverVoiceBadge {
-  min-width: 0;
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: #f9fafb;
-  color: var(--text);
-  padding: 12px 13px;
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.modelRow {
-  grid-template-columns: auto minmax(0, 1fr);
-}
-
-.ttsModelSelect {
+.ttsVoiceSelect {
   min-width: 0;
   width: 100%;
   border: 1px solid var(--border);
@@ -478,7 +462,7 @@ select {
 
   .smallMicButton,
   .voicePreview,
-  .ttsModelSelect {
+  .ttsVoiceSelect {
     width: 100%;
   }
 

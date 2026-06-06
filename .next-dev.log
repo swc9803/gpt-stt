@@ -1,0 +1,16 @@
+yarn run v1.22.22
+$ next dev -p 3010
+▲ Next.js 16.2.7 (Turbopack)
+- Local:         http://localhost:3010
+- Network:       http://192.168.45.193:3010
+- Environments: .env.local
+✓ Ready in 649ms
+Creating turbopack project { dir: 'C:\\Users\\user\\Desktop\\gpt-stt', testMode: true }
+
+ GET / 200 in 531ms (next.js: 258ms, application-code: 273ms)
+ GET /api/health 200 in 130ms (next.js: 107ms, application-code: 24ms)
+ GET /api/health 200 in 12ms (next.js: 4ms, application-code: 7ms)
+ POST /api/speech 200 in 817ms (next.js: 34ms, application-code: 783ms)
+ GET / 200 in 65ms (next.js: 17ms, application-code: 48ms)
+ GET /api/health 200 in 9ms (next.js: 3ms, application-code: 6ms)
+ POST /api/speech 200 in 1392ms (next.js: 3ms, application-code: 1389ms)

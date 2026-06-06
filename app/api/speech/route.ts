@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
-import { DEFAULT_ELEVENLABS_MODEL_ID, isElevenLabsModelId } from '../../elevenlabs-models';
+import { DEFAULT_ELEVENLABS_MODEL_ID } from '../../elevenlabs-models';
+import { DEFAULT_ELEVENLABS_VOICE_ID, isElevenLabsVoiceId } from '../../elevenlabs-voices';
 
 export const runtime = 'nodejs';
 
-const DEFAULT_ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
-
-type SpeechRequest = { text?: string; modelId?: string };
+type SpeechRequest = { text?: string; voiceId?: string };
 
 function getNumberEnv(name: string, fallback: number) {
   const value = Number(process.env[name]);
@@ -64,23 +63,22 @@ function getElevenLabsError(err: unknown) {
   };
 }
 
-async function createElevenLabsSpeech(text: string, modelId: string) {
+async function createElevenLabsSpeech(text: string, voiceId: string) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || DEFAULT_ELEVENLABS_VOICE_ID;
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY is not configured.');
 
-  if (modelId && !isElevenLabsModelId(modelId)) {
-    const error = new Error('지원하지 않는 ElevenLabs 모델입니다.');
+  if (voiceId && !isElevenLabsVoiceId(voiceId)) {
+    const error = new Error('지원하지 않는 ElevenLabs 목소리입니다.');
     (error as Error & { status: number }).status = 400;
     throw error;
   }
 
-  const requestedModelId = modelId || process.env.ELEVENLABS_MODEL_ID || DEFAULT_ELEVENLABS_MODEL_ID;
-  const safeModelId = isElevenLabsModelId(requestedModelId)
-    ? requestedModelId
-    : DEFAULT_ELEVENLABS_MODEL_ID;
+  const requestedVoiceId = voiceId || process.env.ELEVENLABS_VOICE_ID || DEFAULT_ELEVENLABS_VOICE_ID;
+  const safeVoiceId = isElevenLabsVoiceId(requestedVoiceId)
+    ? requestedVoiceId
+    : DEFAULT_ELEVENLABS_VOICE_ID;
   const outputFormat = process.env.ELEVENLABS_OUTPUT_FORMAT || 'mp3_44100_128';
-  const url = new URL(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`);
+  const url = new URL(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(safeVoiceId)}`);
   url.searchParams.set('output_format', outputFormat);
 
   const response = await fetch(url, {
@@ -92,7 +90,7 @@ async function createElevenLabsSpeech(text: string, modelId: string) {
     },
     body: JSON.stringify({
       text: text.slice(0, 1200),
-      model_id: safeModelId,
+      model_id: DEFAULT_ELEVENLABS_MODEL_ID,
       language_code: process.env.ELEVENLABS_LANGUAGE_CODE || 'ko',
       voice_settings: {
         stability: getNumberEnv('ELEVENLABS_STABILITY', 0.42),
@@ -126,12 +124,12 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as SpeechRequest;
     const text = String(body.text || '').trim();
-    const modelId = String(body.modelId || '').trim();
+    const voiceId = String(body.voiceId || '').trim();
     if (!text) {
       return NextResponse.json({ error: '읽을 답변이 비어 있습니다.' }, { status: 400 });
     }
 
-    const audio = await createElevenLabsSpeech(text, modelId);
+    const audio = await createElevenLabsSpeech(text, voiceId);
     return new NextResponse(audio, {
       headers: {
         'content-type': 'audio/mpeg',
