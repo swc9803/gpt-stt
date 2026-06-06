@@ -14,3 +14,10 @@ Creating turbopack project { dir: 'C:\\Users\\user\\Desktop\\gpt-stt', testMode:
  GET / 200 in 65ms (next.js: 17ms, application-code: 48ms)
  GET /api/health 200 in 9ms (next.js: 3ms, application-code: 6ms)
  POST /api/speech 200 in 1392ms (next.js: 3ms, application-code: 1389ms)
+✓ Compiled in 1319ms
+ GET / 200 in 1412ms (next.js: 1318ms, application-code: 94ms)
+ GET / 200 in 162ms (next.js: 70ms, application-code: 92ms)
+ GET / 200 in 76ms (next.js: 4ms, application-code: 71ms)
+ GET /api/health 200 in 32ms (next.js: 26ms, application-code: 5ms)
+ POST /api/chat 200 in 455ms (next.js: 139ms, application-code: 316ms)
+ POST /api/chat 200 in 358ms (next.js: 3ms, application-code: 355ms)

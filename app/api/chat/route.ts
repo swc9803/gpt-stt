@@ -13,9 +13,51 @@ type ChatStreamEvent =
   | { type: 'delta'; delta: string }
   | { type: 'done'; answer: string }
   | { type: 'error'; error: string };
+type StockMatch = { name: string; yahooSymbol: string; displayCode?: string };
+type YahooChartMeta = {
+  symbol?: string;
+  currency?: string;
+  regularMarketPrice?: number;
+  chartPreviousClose?: number;
+  previousClose?: number;
+  regularMarketTime?: number;
+  exchangeName?: string;
+};
+type YahooChartResponse = {
+  chart?: {
+    result?: Array<{
+      meta?: YahooChartMeta;
+    }>;
+    error?: {
+      description?: string;
+    } | null;
+  };
+};
 
 const REFERENCE_TOPIC_PATTERN = /(가격|얼마|시세|최저가|구매|판매|상품|쇼핑|배송|브랜드|용량|텀블러|스탠리|스타벅스|다이소|쿠팡|네이버)/u;
 const URL_PATTERN = /https?:\/\/|\]\(https?:\/\//;
+const STOCK_QUESTION_PATTERN = /(주가|현재가|시세|종가|상승|하락|등락|코스피|코스닥|나스닥|주식|stock|price)/iu;
+const KOREAN_STOCKS: StockMatch[] = [
+  { name: '삼성전자우', yahooSymbol: '005935.KS', displayCode: '005935' },
+  { name: '삼성전자', yahooSymbol: '005930.KS', displayCode: '005930' },
+  { name: 'sk하이닉스', yahooSymbol: '000660.KS', displayCode: '000660' },
+  { name: '에스케이하이닉스', yahooSymbol: '000660.KS', displayCode: '000660' },
+  { name: '현대차', yahooSymbol: '005380.KS', displayCode: '005380' },
+  { name: '기아', yahooSymbol: '000270.KS', displayCode: '000270' },
+  { name: 'lg에너지솔루션', yahooSymbol: '373220.KS', displayCode: '373220' },
+  { name: '엘지에너지솔루션', yahooSymbol: '373220.KS', displayCode: '373220' },
+  { name: 'naver', yahooSymbol: '035420.KS', displayCode: '035420' },
+  { name: '네이버', yahooSymbol: '035420.KS', displayCode: '035420' },
+  { name: '카카오', yahooSymbol: '035720.KS', displayCode: '035720' },
+  { name: '셀트리온', yahooSymbol: '068270.KS', displayCode: '068270' },
+  { name: 'posco홀딩스', yahooSymbol: '005490.KS', displayCode: '005490' },
+  { name: '포스코홀딩스', yahooSymbol: '005490.KS', displayCode: '005490' },
+  { name: 'kb금융', yahooSymbol: '105560.KS', displayCode: '105560' },
+  { name: '신한지주', yahooSymbol: '055550.KS', displayCode: '055550' },
+  { name: '현대모비스', yahooSymbol: '012330.KS', displayCode: '012330' },
+  { name: '삼성바이오로직스', yahooSymbol: '207940.KS', displayCode: '207940' },
+  { name: 'lg화학', yahooSymbol: '051910.KS', displayCode: '051910' },
+];
 
 function getChatProvider(): ChatProvider {
   const provider = (process.env.CHAT_PROVIDER || process.env.AI_CHAT_PROVIDER || 'openai').toLowerCase();
@@ -110,6 +152,101 @@ function getOpenAIChatModel() {
   return process.env.OPENAI_CHAT_MODEL || 'gpt-4.1-mini';
 }
 
+function normalizeStockQuery(value: string) {
+  return value.toLowerCase().replace(/\s+/g, '').trim();
+}
+
+function findStockMatch(message: string): StockMatch | undefined {
+  if (!STOCK_QUESTION_PATTERN.test(message)) return undefined;
+
+  const normalized = normalizeStockQuery(message);
+  const namedMatch = KOREAN_STOCKS.find((stock) => normalized.includes(normalizeStockQuery(stock.name)));
+  if (namedMatch) return namedMatch;
+
+  const codeMatch = message.match(/\b\d{6}\b/);
+  if (codeMatch) {
+    return {
+      name: `${codeMatch[0]} 종목`,
+      yahooSymbol: `${codeMatch[0]}.KS`,
+      displayCode: codeMatch[0],
+    };
+  }
+
+  return undefined;
+}
+
+function formatPrice(value: number, currency?: string) {
+  if (currency === 'KRW') return `${Math.round(value).toLocaleString('ko-KR')}원`;
+  if (currency === 'USD') return `$${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  return `${value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}${currency ? ` ${currency}` : ''}`;
+}
+
+function formatChange(value: number, currency?: string) {
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${formatPrice(value, currency)}`;
+}
+
+function formatMarketTime(unixSeconds?: number) {
+  if (!unixSeconds) return '기준 시간 확인 불가';
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(unixSeconds * 1000));
+}
+
+async function fetchYahooChart(symbol: string): Promise<YahooChartMeta | undefined> {
+  const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1m`, {
+    headers: {
+      accept: 'application/json',
+      'user-agent': 'gpt-stt/1.0',
+    },
+    cache: 'no-store',
+  });
+  if (!response.ok) return undefined;
+
+  const data = (await response.json()) as YahooChartResponse;
+  return data.chart?.result?.[0]?.meta;
+}
+
+async function createStockAnswer(message: string) {
+  const stock = findStockMatch(message);
+  if (!stock) return '';
+
+  const meta = await fetchYahooChart(stock.yahooSymbol);
+  const price = meta?.regularMarketPrice;
+  const previousClose = meta?.chartPreviousClose ?? meta?.previousClose;
+  if (typeof price !== 'number') return '';
+
+  const currency = meta?.currency;
+  const change = typeof previousClose === 'number' ? price - previousClose : undefined;
+  const changeRate = typeof previousClose === 'number' && previousClose !== 0
+    ? (change! / previousClose) * 100
+    : undefined;
+  const direction = typeof change === 'number'
+    ? change > 0
+      ? '상승'
+      : change < 0
+        ? '하락'
+        : '보합'
+    : '등락 확인 불가';
+  const codeText = stock.displayCode ? `(${stock.displayCode})` : `(${stock.yahooSymbol})`;
+  const changeText = typeof change === 'number' && typeof changeRate === 'number'
+    ? `${formatChange(change, currency)} / ${changeRate >= 0 ? '+' : ''}${changeRate.toFixed(2)}% ${direction}`
+    : '전일 대비 정보 확인 불가';
+
+  return [
+    `${stock.name} ${codeText} 현재가는 ${formatPrice(price, currency)}입니다.`,
+    `전일 대비 ${changeText}입니다.`,
+    `기준 시각은 ${formatMarketTime(meta?.regularMarketTime)}이며, 데이터 출처는 Yahoo Finance입니다.`,
+    '',
+    '실시간 시세는 지연되거나 거래소 기준과 차이가 있을 수 있어요. 투자 판단은 증권사/거래소 시세로 한 번 더 확인해 주세요.',
+  ].join('\n');
+}
+
 async function createOpenAIAnswer(message: string) {
   const openai = getOpenAI();
   const response = await openai.responses.create({
@@ -162,6 +299,13 @@ function createChatStream(message: string, originalMessage: string, history: Cha
       let answer = '';
 
       try {
+        const stockAnswer = await createStockAnswer(originalMessage);
+        if (stockAnswer) {
+          controller.enqueue(encodeChatStreamEvent({ type: 'delta', delta: stockAnswer }));
+          controller.enqueue(encodeChatStreamEvent({ type: 'done', answer: stockAnswer }));
+          return;
+        }
+
         if (getChatProvider() === 'hermes-codex') {
           answer = await createHermesCodexAnswer(message);
           controller.enqueue(encodeChatStreamEvent({ type: 'delta', delta: answer }));
@@ -197,8 +341,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '질문이 비어 있습니다.' }, { status: 400 });
     }
 
-    const messageWithHistory = buildMessageWithHistory(message, history);
     if (body.stream) {
+      const messageWithHistory = buildMessageWithHistory(message, history);
       return new Response(createChatStream(messageWithHistory, message, history), {
         headers: {
           'content-type': 'text/event-stream; charset=utf-8',
@@ -207,9 +351,11 @@ export async function POST(request: Request) {
       });
     }
 
-    let answer = getChatProvider() === 'hermes-codex'
+    const messageWithHistory = buildMessageWithHistory(message, history);
+    const stockAnswer = await createStockAnswer(message);
+    let answer = stockAnswer || (getChatProvider() === 'hermes-codex'
       ? await createHermesCodexAnswer(messageWithHistory)
-      : await createOpenAIAnswer(messageWithHistory);
+      : await createOpenAIAnswer(messageWithHistory));
     answer += getReferenceLinks(message, history, answer);
 
     return NextResponse.json({ answer });
