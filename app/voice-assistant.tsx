@@ -49,6 +49,7 @@ const SILENCE_THRESHOLD = 0.018;
 const HISTORY_KEY = 'gpt-stt-history-v1';
 const SW_CLEANUP_KEY = 'gpt-stt-sw-cleaned-v1';
 const TTS_VOICE_KEY = 'gpt-stt-elevenlabs-voice-v1';
+const AUTO_READ_KEY = 'gpt-stt-auto-read-v1';
 const MAX_HISTORY_SESSIONS = 8;
 const MAX_CONTEXT_TURNS = 4;
 const ENABLE_OPENAI_STT_FALLBACK = process.env.NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK === 'true';
@@ -315,6 +316,7 @@ export default function VoiceAssistant() {
   const [autoStopReady, setAutoStopReady] = useState(false);
   const [typedQuestion, setTypedQuestion] = useState('');
   const [serverTtsEnabled, setServerTtsEnabled] = useState(true);
+  const [autoReadEnabled, setAutoReadEnabled] = useState(true);
   const [ttsVoices, setTtsVoices] = useState<ElevenLabsVoiceOption[]>(ELEVENLABS_VOICE_OPTIONS);
   const [selectedTtsVoice, setSelectedTtsVoice] = useState<ElevenLabsVoiceId>(DEFAULT_ELEVENLABS_VOICE_ID);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -360,6 +362,9 @@ export default function VoiceAssistant() {
         window.localStorage.removeItem(HISTORY_KEY);
       }
     }
+
+    const savedAutoRead = window.localStorage.getItem(AUTO_READ_KEY);
+    if (savedAutoRead !== null) setAutoReadEnabled(savedAutoRead !== 'false');
 
     void loadTtsConfig();
 
@@ -412,6 +417,12 @@ export default function VoiceAssistant() {
     if (!isElevenLabsVoiceId(voiceId)) return;
     setSelectedTtsVoice(voiceId);
     window.localStorage.setItem(TTS_VOICE_KEY, voiceId);
+  }
+
+  function toggleAutoRead(enabled: boolean) {
+    setAutoReadEnabled(enabled);
+    window.localStorage.setItem(AUTO_READ_KEY, String(enabled));
+    if (!enabled) audioRef.current?.pause();
   }
 
   function previewVoice() {
@@ -557,7 +568,7 @@ export default function VoiceAssistant() {
 
     setAnswer(finalReply);
     addHistory(cleanText, finalReply, context.sessionId);
-    void speak(finalReply);
+    if (autoReadEnabled) void speak(finalReply);
   }
 
   function startSilenceMonitor(stream: MediaStream) {
@@ -877,7 +888,16 @@ export default function VoiceAssistant() {
                 disabled={!['idle', 'recording', 'speaking'].includes(step)}
                 aria-label={step === 'recording' ? '끝' : '말하기'}
               >
-                {step === 'recording' ? '끝' : '말하기'}
+                {step === 'recording' ? (
+                  <span className="stopIcon" aria-hidden="true" />
+                ) : (
+                  <svg className="micIcon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" />
+                    <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                    <path d="M12 18v4" />
+                    <path d="M8 22h8" />
+                  </svg>
+                )}
               </button>
             </div>
             {statusText(step, autoStopReady) ? <div className="status compactStatus" role="status">{statusText(step, autoStopReady)}</div> : null}
@@ -893,7 +913,22 @@ export default function VoiceAssistant() {
         </section>
 
         <section className="panel card">
-          <h2>답변</h2>
+          <div className="answerHeader">
+            <h2>답변</h2>
+            <label className="answerToggle">
+              <span className="voiceLabel">자동 읽기</span>
+              <input
+                className="toggleInput"
+                type="checkbox"
+                checked={autoReadEnabled}
+                onChange={(event) => toggleAutoRead(event.target.checked)}
+                disabled={!serverTtsEnabled}
+              />
+              <span className="toggleTrack" aria-hidden="true">
+                <span className="toggleThumb" />
+              </span>
+            </label>
+          </div>
           <div className={`bubble answerBubble ${answer ? '' : 'empty'}`}>
             {answer ? renderLinkedText(answer) : '답변이 여기에 표시됩니다.'}
           </div>

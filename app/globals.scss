@@ -151,6 +151,17 @@ select {
   }
 }
 
+.answerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  h2 {
+    margin: 0;
+  }
+}
+
 .empty {
   color: #9ca3af;
 }
@@ -176,8 +187,8 @@ select {
 
 .composerRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) clamp(92px, 20vw, 124px);
+  gap: 12px;
   align-items: stretch;
 }
 
@@ -229,14 +240,43 @@ select {
 }
 
 .smallMicButton {
-  min-width: 92px;
-  background: #eef2ff;
-  color: #1e3a8a;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 1;
+  align-self: center;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #2563eb;
+  color: white;
+  box-shadow: 0 16px 34px rgba(37, 99, 235, 0.24);
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+
+  &:active {
+    transform: scale(0.97);
+  }
 
   &.recording {
-    background: #fff1f2;
-    color: #991b1b;
+    background: #dc2626;
+    box-shadow: 0 16px 34px rgba(220, 38, 38, 0.22);
   }
+}
+
+.micIcon {
+  width: 44%;
+  height: 44%;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+}
+
+.stopIcon {
+  width: 34%;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  background: currentColor;
 }
 
 .actions {
@@ -255,6 +295,20 @@ select {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
+}
+
+.answerToggle {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toggleRow {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  cursor: pointer;
 }
 
 .voiceLabel {
@@ -279,6 +333,52 @@ select {
     opacity: 0.5;
     cursor: not-allowed;
   }
+}
+
+.toggleInput {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggleTrack {
+  width: 58px;
+  height: 32px;
+  border-radius: 999px;
+  background: #d1d5db;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  transition: background 140ms ease;
+}
+
+.toggleThumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.2);
+  transition: transform 140ms ease;
+}
+
+.toggleInput:checked + .toggleTrack {
+  background: #2563eb;
+}
+
+.toggleInput:checked + .toggleTrack .toggleThumb {
+  transform: translateX(26px);
+}
+
+.toggleInput:focus-visible + .toggleTrack {
+  outline: 3px solid rgba(37, 99, 235, 0.28);
+  outline-offset: 3px;
+}
+
+.toggleInput:disabled + .toggleTrack {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .voicePreview {
@@ -480,15 +580,40 @@ select {
   }
 
   .actions,
-  .composerRow,
   .voiceRow {
     grid-template-columns: 1fr;
+  }
+
+  .composerRow {
+    grid-template-columns: minmax(0, 1fr) 88px;
   }
 
   .smallMicButton,
   .voicePreview,
   .ttsVoiceSelect {
     width: 100%;
+  }
+
+  .answerToggle {
+    gap: 6px;
+
+    .voiceLabel {
+      font-size: 13px;
+    }
+  }
+
+  .toggleTrack {
+    width: 52px;
+    height: 30px;
+  }
+
+  .toggleThumb {
+    width: 24px;
+    height: 24px;
+  }
+
+  .toggleInput:checked + .toggleTrack .toggleThumb {
+    transform: translateX(22px);
   }
 
   .card {
