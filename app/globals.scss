@@ -381,23 +381,6 @@ select {
   cursor: not-allowed;
 }
 
-.voicePreview {
-  border: 0;
-  border-radius: 14px;
-  background: #eef2ff;
-  color: #1e3a8a;
-  padding: 12px 14px;
-  font-size: 15px;
-  font-weight: 800;
-  cursor: pointer;
-  white-space: nowrap;
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
 .actionButton {
   border: 0;
   border-radius: 16px;
@@ -589,7 +572,6 @@ select {
   }
 
   .smallMicButton,
-  .voicePreview,
   .ttsVoiceSelect {
     width: 100%;
   }

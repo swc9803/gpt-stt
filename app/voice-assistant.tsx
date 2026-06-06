@@ -53,7 +53,6 @@ const AUTO_READ_KEY = 'gpt-stt-auto-read-v1';
 const MAX_HISTORY_SESSIONS = 8;
 const MAX_CONTEXT_TURNS = 4;
 const ENABLE_OPENAI_STT_FALLBACK = process.env.NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK === 'true';
-const VOICE_PREVIEW_TEXT = '안녕하세요. 지금 선택한 목소리로 말하고 있어요.';
 const TOPIC_STOP_WORDS = new Set([
   '가족',
   '가능',
@@ -423,10 +422,6 @@ export default function VoiceAssistant() {
     setAutoReadEnabled(enabled);
     window.localStorage.setItem(AUTO_READ_KEY, String(enabled));
     if (!enabled) audioRef.current?.pause();
-  }
-
-  function previewVoice() {
-    void speak(VOICE_PREVIEW_TEXT);
   }
 
   function clearRecognitionFinishTimer() {
@@ -948,12 +943,10 @@ export default function VoiceAssistant() {
                   </option>
                 ))}
               </select>
-              <button className="voicePreview" onClick={previewVoice} disabled={step === 'recording' || !serverTtsEnabled}>미리듣기</button>
             </div>
           </div>
           <div className="actions">
             <button className="actionButton" onClick={() => void speak(answer)} disabled={!answer || step === 'recording'}>다시 듣기</button>
-            <button className="actionButton secondary" onClick={() => { sessionIdRef.current = createSessionId(); setTranscript(''); setAnswer(''); setError(''); audioRef.current?.pause(); setStep('idle'); }}>초기화</button>
           </div>
         </section>
 
