@@ -27,6 +27,7 @@ body {
 
 button,
 textarea,
+input,
 select {
   font: inherit;
 }
@@ -535,6 +536,45 @@ select {
   text-align: left;
   cursor: pointer;
   min-width: 0;
+}
+
+.historyItemActions,
+.historyRenameForm {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.historyActionButton {
+  border: 0;
+  border-radius: 12px;
+  padding: 9px 11px;
+  background: #eef2ff;
+  color: #1e3a8a;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+
+  &.primary {
+    background: #111827;
+    color: white;
+  }
+}
+
+.historyRenameForm {
+  align-items: center;
+}
+
+.historyRenameInput {
+  min-width: min(220px, 100%);
+  flex: 1 1 180px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+  color: var(--text);
+  padding: 9px 11px;
+  font-size: 15px;
+  font-weight: 750;
 }
 
 .clearHistory {

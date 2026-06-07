@@ -11,7 +11,7 @@ import {
 
 type Step = 'idle' | 'recording' | 'transcribing' | 'thinking' | 'speaking';
 type HistoryTurn = { question: string; answer: string; at: number };
-type HistorySession = { id: string; title: string; turns: HistoryTurn[]; updatedAt: number };
+type HistorySession = { id: string; title: string; turns: HistoryTurn[]; updatedAt: number; pinned?: boolean };
 type BrowserSpeechRecognitionEvent = {
   resultIndex: number;
   results: ArrayLike<{
@@ -207,6 +207,24 @@ function createSessionId() {
   return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function sortHistorySessions(sessions: HistorySession[]) {
+  return [...sessions].sort((left, right) => {
+    if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
+    return right.updatedAt - left.updatedAt;
+  });
+}
+
+function normalizeCommandText(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[.,!?！？。、\s]/g, '');
+}
+
+function extractTitleCommand(text: string) {
+  const match = text.match(/(?:이\s*대화\s*)?(?:제목|이름)(?:을|를)?\s*(.+?)(?:으로|로)?\s*(?:바꿔|변경|저장)?$/u);
+  return match?.[1]?.replace(/["'“”]/g, '').trim() || '';
+}
+
 function normalizeTopicToken(token: string) {
   return token
     .replace(/(으로는|로는|으로|에는|에서|에게|부터|까지|은|는|이|가|을|를|도|만|과|와|랑)$/u, '')
@@ -308,7 +326,10 @@ function splitMixedHistorySessions(sessions: HistorySession[]) {
   });
 
   return normalized
-    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .sort((left, right) => {
+      if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
+      return right.updatedAt - left.updatedAt;
+    })
     .slice(0, MAX_HISTORY_SESSIONS);
 }
 
@@ -321,6 +342,8 @@ export default function VoiceAssistant() {
   const [expandedHistoryId, setExpandedHistoryId] = useState('');
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<string[]>([]);
   const [isHistoryDeleteMode, setIsHistoryDeleteMode] = useState(false);
+  const [renamingHistoryId, setRenamingHistoryId] = useState('');
+  const [renamingHistoryTitle, setRenamingHistoryTitle] = useState('');
   const [autoStopReady, setAutoStopReady] = useState(false);
   const [typedQuestion, setTypedQuestion] = useState('');
   const [serverTtsEnabled, setServerTtsEnabled] = useState(true);
@@ -334,6 +357,7 @@ export default function VoiceAssistant() {
   const rafRef = useRef<number | null>(null);
   const silenceSinceRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastAnswerRef = useRef('');
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const recognitionFinalTextRef = useRef('');
   const recognitionLiveTextRef = useRef('');
@@ -447,8 +471,9 @@ export default function VoiceAssistant() {
   }
 
   function saveHistory(next: HistorySession[]) {
-    setHistory(next);
-    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next.slice(0, MAX_HISTORY_SESSIONS)));
+    const sorted = sortHistorySessions(next).slice(0, MAX_HISTORY_SESSIONS);
+    setHistory(sorted);
+    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(sorted));
   }
 
   function addHistory(question: string, reply: string, sessionId: string) {
@@ -470,7 +495,7 @@ export default function VoiceAssistant() {
             turns: [turn],
             updatedAt: now,
           };
-      const next = [session, ...rest].slice(0, MAX_HISTORY_SESSIONS);
+      const next = sortHistorySessions([session, ...rest]).slice(0, MAX_HISTORY_SESSIONS);
       window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
       return next;
     });
@@ -482,6 +507,8 @@ export default function VoiceAssistant() {
     setExpandedHistoryId('');
     setSelectedHistoryIds([]);
     setIsHistoryDeleteMode(false);
+    setRenamingHistoryId('');
+    setRenamingHistoryTitle('');
   }
 
   function toggleHistorySelection(sessionId: string) {
@@ -497,8 +524,45 @@ export default function VoiceAssistant() {
     const selected = new Set(selectedHistoryIds);
     saveHistory(history.filter((session) => !selected.has(session.id)));
     if (selected.has(expandedHistoryId)) setExpandedHistoryId('');
+    if (selected.has(renamingHistoryId)) {
+      setRenamingHistoryId('');
+      setRenamingHistoryTitle('');
+    }
     setSelectedHistoryIds([]);
     setIsHistoryDeleteMode(false);
+  }
+
+  function continueHistorySession(session: HistorySession) {
+    const lastTurn = session.turns[session.turns.length - 1];
+    sessionIdRef.current = session.id;
+    setExpandedHistoryId(session.id);
+    setError('');
+    if (lastTurn) {
+      setTranscript(lastTurn.question);
+      setAnswer(lastTurn.answer);
+      lastAnswerRef.current = lastTurn.answer;
+    }
+  }
+
+  function toggleHistoryPinned(sessionId: string) {
+    saveHistory(history.map((session) => (
+      session.id === sessionId ? { ...session, pinned: !session.pinned } : session
+    )));
+  }
+
+  function startRenameHistory(session: HistorySession) {
+    setRenamingHistoryId(session.id);
+    setRenamingHistoryTitle(session.title || '새 대화');
+  }
+
+  function renameHistorySession(sessionId: string, title: string) {
+    const nextTitle = title.trim();
+    if (!nextTitle) return;
+    saveHistory(history.map((session) => (
+      session.id === sessionId ? { ...session, title: nextTitle } : session
+    )));
+    setRenamingHistoryId('');
+    setRenamingHistoryTitle('');
   }
 
   function getContextForMessage(message: string) {
@@ -534,6 +598,7 @@ export default function VoiceAssistant() {
   async function answerFromText(text: string) {
     const cleanText = text.trim();
     if (!cleanText) throw new Error('말소리를 인식하지 못했습니다. 다시 한 번 또렷하게 말씀해 주세요.');
+    if (handleVoiceCommand(cleanText)) return;
 
     setTranscript(cleanText);
     setAnswer('');
@@ -549,8 +614,125 @@ export default function VoiceAssistant() {
     if (!finalReply) throw new Error('답변이 비어 있습니다. 다시 한 번 질문해 주세요.');
 
     setAnswer(finalReply);
+    lastAnswerRef.current = finalReply;
     addHistory(cleanText, finalReply, context.sessionId);
     if (autoReadEnabled) void speak(finalReply);
+  }
+
+  function setCommandAnswer(message: string, shouldSpeak = false) {
+    setAnswer(message);
+    setStep('idle');
+    if (shouldSpeak && autoReadEnabled) void speak(message);
+  }
+
+  function handleVoiceCommand(text: string) {
+    const command = normalizeCommandText(text);
+    const currentSession = history.find((session) => session.id === sessionIdRef.current);
+
+    if (/^(그만|멈춰|중지|읽기그만|말그만)$/u.test(command)) {
+      audioRef.current?.pause();
+      setTranscript(text);
+      setStep('idle');
+      setError('');
+      return true;
+    }
+
+    if (/^(다시읽어|다시들려줘|한번더읽어|답변다시읽어)$/u.test(command)) {
+      setTranscript(text);
+      const targetAnswer = answer.trim() || lastAnswerRef.current.trim();
+      if (!targetAnswer) {
+        setCommandAnswer('다시 읽을 답변이 없습니다.');
+        return true;
+      }
+      setAnswer(targetAnswer);
+      void speak(targetAnswer);
+      return true;
+    }
+
+    if (/^(새대화|새로운대화|대화새로시작|처음부터)$/u.test(command)) {
+      sessionIdRef.current = createSessionId();
+      setExpandedHistoryId('');
+      setTranscript('');
+      setAnswer('');
+      setError('');
+      setStep('idle');
+      return true;
+    }
+
+    if (/^(기록지워|대화기록지워|전체기록지워|기록삭제|대화기록삭제)$/u.test(command)) {
+      setTranscript(text);
+      clearHistory();
+      setCommandAnswer('대화 기록을 지웠습니다.', true);
+      return true;
+    }
+
+    if (/^(이대화고정|현재대화고정|대화고정)$/u.test(command)) {
+      setTranscript(text);
+      if (!currentSession) {
+        setCommandAnswer('고정할 대화가 없습니다.');
+        return true;
+      }
+      saveHistory(history.map((session) => (
+        session.id === currentSession.id ? { ...session, pinned: true } : session
+      )));
+      setCommandAnswer('현재 대화를 고정했습니다.', true);
+      return true;
+    }
+
+    if (/^(이대화고정해제|현재대화고정해제|대화고정해제)$/u.test(command)) {
+      setTranscript(text);
+      if (!currentSession) {
+        setCommandAnswer('고정 해제할 대화가 없습니다.');
+        return true;
+      }
+      saveHistory(history.map((session) => (
+        session.id === currentSession.id ? { ...session, pinned: false } : session
+      )));
+      setCommandAnswer('현재 대화 고정을 해제했습니다.', true);
+      return true;
+    }
+
+    const title = extractTitleCommand(text);
+    if (title && /(제목|이름).*(바꿔|변경|저장)|^(이\s*대화\s*)?(제목|이름)/u.test(text)) {
+      setTranscript(text);
+      if (!currentSession) {
+        setCommandAnswer('제목을 바꿀 대화가 없습니다.');
+        return true;
+      }
+      renameHistorySession(currentSession.id, title);
+      setCommandAnswer(`대화 제목을 ${title}로 바꿨습니다.`, true);
+      return true;
+    }
+
+    if (/^(방금답변요약해|방금답변요약|답변요약해|요약해)$/u.test(command)) {
+      setTranscript(text);
+      const targetAnswer = answer.trim() || lastAnswerRef.current.trim();
+      if (!targetAnswer) {
+        setCommandAnswer('요약할 답변이 없습니다.');
+        return true;
+      }
+
+      setAnswer('');
+      setStep('thinking');
+      const summaryPrompt = `방금 답변을 3문장 이내로 요약해줘.\n\n답변:\n${targetAnswer}`;
+      const context = getContextForMessage(text);
+      void streamChatAnswer({ message: summaryPrompt, history: context.turns }, (_delta, nextAnswer) => {
+        setAnswer(nextAnswer);
+      }).then((reply) => {
+        const finalReply = reply.trim();
+        if (!finalReply) throw new Error('요약 답변이 비어 있습니다.');
+        setAnswer(finalReply);
+        lastAnswerRef.current = finalReply;
+        addHistory(text, finalReply, context.sessionId);
+        if (autoReadEnabled) void speak(finalReply);
+      }).catch((err) => {
+        setError(err instanceof Error ? err.message : '요약 중 문제가 발생했습니다.');
+        setStep('idle');
+      });
+      return true;
+    }
+
+    return false;
   }
 
   function startSilenceMonitor(stream: MediaStream) {
@@ -986,19 +1168,52 @@ export default function VoiceAssistant() {
                   <button
                     className="historyTitleButton"
                     onClick={() => {
-                      const lastTurn = session.turns[session.turns.length - 1];
-                      sessionIdRef.current = session.id;
+                      continueHistorySession(session);
                       setExpandedHistoryId(expandedHistoryId === session.id ? '' : session.id);
-                      if (lastTurn) {
-                        setTranscript(lastTurn.question);
-                        setAnswer(lastTurn.answer);
-                      }
                     }}
                   >
-                    <strong>{session.title || '새 대화'}</strong>
+                    <strong>{session.pinned ? '고정됨 · ' : ''}{session.title || '새 대화'}</strong>
                   </button>
                   {expandedHistoryId === session.id ? (
                     <div className="historyTurns">
+                      <div className="historyItemActions">
+                        <button className="historyActionButton" type="button" onClick={() => continueHistorySession(session)}>
+                          이어가기
+                        </button>
+                        <button className="historyActionButton" type="button" onClick={() => toggleHistoryPinned(session.id)}>
+                          {session.pinned ? '고정 해제' : '고정'}
+                        </button>
+                        <button className="historyActionButton" type="button" onClick={() => startRenameHistory(session)}>
+                          제목 변경
+                        </button>
+                      </div>
+                      {renamingHistoryId === session.id ? (
+                        <form
+                          className="historyRenameForm"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            renameHistorySession(session.id, renamingHistoryTitle);
+                          }}
+                        >
+                          <input
+                            className="historyRenameInput"
+                            value={renamingHistoryTitle}
+                            onChange={(event) => setRenamingHistoryTitle(event.target.value)}
+                            aria-label="대화 제목"
+                          />
+                          <button className="historyActionButton primary" type="submit">저장</button>
+                          <button
+                            className="historyActionButton"
+                            type="button"
+                            onClick={() => {
+                              setRenamingHistoryId('');
+                              setRenamingHistoryTitle('');
+                            }}
+                          >
+                            취소
+                          </button>
+                        </form>
+                      ) : null}
                       {session.turns.map((item) => (
                         <div className="historyTurn" key={`${item.at}-${item.question}`}>
                           <strong>{item.question}</strong>
