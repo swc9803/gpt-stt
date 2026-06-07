@@ -1,5 +1,16 @@
 # todo
 
+## Speech to Text
+
+iPhone/iPad에서는 브라우저 내장 음성 인식이 권한 허용 후에도 실패할 수 있어, 서버 전사 fallback을 켜는 것을 권장합니다.
+
+```bash
+NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK=true
+OPENAI_STT_MODEL=gpt-4o-mini-transcribe
+```
+
+이 값이 켜져 있으면 iOS 계열 브라우저에서는 `SpeechRecognition` 대신 마이크 녹음 후 `/api/transcribe` 서버 전사를 사용합니다.
+
 ## Server TTS
 
 TTS는 ElevenLabs만 사용합니다.

@@ -47,7 +47,6 @@ const BROWSER_SPEECH_SILENCE_LIMIT_MS = 1600;
 const BROWSER_SPEECH_FINAL_SILENCE_LIMIT_MS = 700;
 const SILENCE_THRESHOLD = 0.018;
 const HISTORY_KEY = 'gpt-stt-history-v1';
-const SW_CLEANUP_KEY = 'gpt-stt-sw-cleaned-v1';
 const TTS_VOICE_KEY = 'gpt-stt-elevenlabs-voice-v1';
 const AUTO_READ_KEY = 'gpt-stt-auto-read-v1';
 const MAX_HISTORY_SESSIONS = 8;
@@ -87,6 +86,16 @@ function statusText(step: Step, autoStopReady: boolean) {
 
 function getBrowserSpeechRecognition() {
   return window.SpeechRecognition || window.webkitSpeechRecognition;
+}
+
+function shouldUseServerSpeechToText() {
+  const platform = navigator.platform || '';
+  const userAgent = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(platform)
+    || (/Mac/.test(platform) && navigator.maxTouchPoints > 1)
+    || /iPad|iPhone|iPod/.test(userAgent);
+
+  return isIOS && ENABLE_OPENAI_STT_FALLBACK;
 }
 
 async function streamChatAnswer(
@@ -334,8 +343,6 @@ export default function VoiceAssistant() {
   const sessionIdRef = useRef(createSessionId());
 
   useEffect(() => {
-    void cleanupServiceWorker();
-
     const saved = window.localStorage.getItem(HISTORY_KEY);
     if (saved) {
       try {
@@ -374,26 +381,6 @@ export default function VoiceAssistant() {
       audioRef.current?.pause();
     };
   }, []);
-
-  async function cleanupServiceWorker() {
-    if (!('serviceWorker' in navigator)) return;
-
-    try {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      const cacheKeys = 'caches' in window ? await window.caches.keys() : [];
-      await Promise.all([
-        ...registrations.map((registration) => registration.unregister()),
-        ...cacheKeys.filter((key) => key.startsWith('gpt-stt-')).map((key) => window.caches.delete(key)),
-      ]);
-
-      if (navigator.serviceWorker.controller && window.sessionStorage.getItem(SW_CLEANUP_KEY) !== 'done') {
-        window.sessionStorage.setItem(SW_CLEANUP_KEY, 'done');
-        window.location.reload();
-      }
-    } catch {
-      // A failed cleanup should not block the voice assistant.
-    }
-  }
 
   async function loadTtsConfig() {
     try {
@@ -659,7 +646,7 @@ export default function VoiceAssistant() {
     clearRecognitionFinishTimer();
     recognitionFinishingRef.current = false;
 
-    const SpeechRecognitionCtor = getBrowserSpeechRecognition();
+    const SpeechRecognitionCtor = shouldUseServerSpeechToText() ? undefined : getBrowserSpeechRecognition();
     if (SpeechRecognitionCtor) {
       startBrowserSpeechRecognition(SpeechRecognitionCtor);
       return;
@@ -737,7 +724,7 @@ export default function VoiceAssistant() {
       setStep('idle');
       const error = event.error === 'not-allowed'
         ? '마이크 권한이 필요합니다. 브라우저 주소창 설정에서 마이크를 허용해 주세요.'
-        : '브라우저 음성 인식에 실패했습니다. 다시 한 번 말씀해 주세요.';
+        : `브라우저 음성 인식에 실패했습니다${event.error ? ` (${event.error})` : ''}. 다시 한 번 말씀해 주세요.`;
       setError(error);
     };
 
