@@ -280,12 +280,6 @@ select {
   background: currentColor;
 }
 
-.actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
 .voiceControls {
   display: grid;
   gap: 12px;
@@ -380,28 +374,6 @@ select {
 .toggleInput:disabled + .toggleTrack {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.actionButton {
-  border: 0;
-  border-radius: 16px;
-  padding: 16px 14px;
-  background: #111827;
-  color: white;
-  font-size: clamp(17px, 4.2vw, 22px);
-  font-weight: 800;
-  cursor: pointer;
-  touch-action: manipulation;
-
-  &.secondary {
-    background: #eef2ff;
-    color: #1e3a8a;
-  }
-
-  &:disabled {
-    opacity: 0.42;
-    cursor: not-allowed;
-  }
 }
 
 .error {
@@ -602,7 +574,6 @@ select {
     gap: 12px;
   }
 
-  .actions,
   .voiceRow {
     grid-template-columns: 1fr;
   }
