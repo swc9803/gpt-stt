@@ -8,7 +8,9 @@ RUN yarn install --frozen-lockfile
 
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK=true
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK=${NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN yarn build

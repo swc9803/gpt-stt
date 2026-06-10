@@ -1,6 +1,5 @@
-const CACHE_NAME = 'gpt-stt-shell-v1';
+const CACHE_NAME = 'gpt-stt-shell-v2';
 const APP_SHELL = [
-  '/',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -30,8 +29,12 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/')) return;
+  if (request.mode === 'navigate') {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   event.respondWith(
-    fetch(request).catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
+    fetch(request).catch(() => caches.match(request))
   );
 });

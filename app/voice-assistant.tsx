@@ -89,13 +89,7 @@ function getBrowserSpeechRecognition() {
 }
 
 function shouldUseServerSpeechToText() {
-  const platform = navigator.platform || '';
-  const userAgent = navigator.userAgent || '';
-  const isIOS = /iPad|iPhone|iPod/.test(platform)
-    || (/Mac/.test(platform) && navigator.maxTouchPoints > 1)
-    || /iPad|iPhone|iPod/.test(userAgent);
-
-  return isIOS && ENABLE_OPENAI_STT_FALLBACK;
+  return ENABLE_OPENAI_STT_FALLBACK;
 }
 
 async function streamChatAnswer(
