@@ -1108,9 +1108,6 @@ export default function VoiceAssistant() {
               </select>
             </div>
           </div>
-          <div className="actions">
-            <button className="actionButton" onClick={() => void speak(answer)} disabled={!answer || step === 'recording'}>다시 듣기</button>
-          </div>
         </section>
 
         {history.length > 0 ? (
