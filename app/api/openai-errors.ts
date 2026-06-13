@@ -25,6 +25,13 @@ export function formatOpenAIError(err: unknown, featureName: string, fallback: s
     };
   }
 
+  if (/exceeded.*quota|quota|billing|크레딧|할당량/i.test(message)) {
+    return {
+      error: `${featureName}에 필요한 OpenAI API 크레딧이 부족합니다. 이미지 분석은 OpenAI 비전 모델을 사용하므로, 크레딧을 충전하거나 결제/사용 한도를 확인한 뒤 다시 시도해 주세요.`,
+      status: status && status >= 400 ? status : 429,
+    };
+  }
+
   if (status === 401) {
     return {
       error: `${featureName}에 사용하는 OpenAI API 키가 유효하지 않습니다. 서버 환경변수 OPENAI_API_KEY를 확인해 주세요.`,
@@ -34,7 +41,7 @@ export function formatOpenAIError(err: unknown, featureName: string, fallback: s
 
   if (status === 429) {
     return {
-      error: `${featureName}에 사용하는 OpenAI API 할당량이 초과되었습니다. OpenAI 결제/크레딧과 프로젝트 사용 한도를 확인해 주세요.`,
+      error: `${featureName}에 필요한 OpenAI API 크레딧이 부족합니다. OpenAI 결제/크레딧과 프로젝트 사용 한도를 확인해 주세요.`,
       status,
     };
   }

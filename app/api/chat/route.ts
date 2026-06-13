@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { ResponseInput } from 'openai/resources/responses/responses';
 import { createHermesCodexAnswer } from '../hermes-codex';
 import { formatOpenAIError } from '../openai-errors';
 import { getOpenAI } from '../openai';
@@ -6,7 +7,8 @@ import { getOpenAI } from '../openai';
 export const runtime = 'nodejs';
 
 type ChatContextItem = { question?: string; answer?: string };
-type ChatRequest = { message?: string; history?: ChatContextItem[]; stream?: boolean };
+type ChatImage = { name?: string; dataUrl?: string };
+type ChatRequest = { message?: string; history?: ChatContextItem[]; stream?: boolean; images?: ChatImage[] };
 
 type ChatProvider = 'openai' | 'hermes-codex';
 type ChatStreamEvent =
@@ -247,28 +249,57 @@ async function createStockAnswer(message: string) {
   ].join('\n');
 }
 
-async function createOpenAIAnswer(message: string) {
+async function createOpenAIAnswer(message: string, images: string[] = []) {
   const openai = getOpenAI();
   const response = await openai.responses.create({
     model: getOpenAIChatModel(),
     instructions: getAnswerInstructions(),
     tools: [{ type: 'web_search' }],
     tool_choice: 'auto',
-    input: message,
+    input: buildOpenAIInput(message, images),
     max_output_tokens: 450,
   });
 
   return response.output_text.trim();
 }
 
-async function createOpenAIAnswerStream(message: string, onDelta: (delta: string) => void) {
+function isSupportedImageDataUrl(dataUrl: string) {
+  return /^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(dataUrl)
+    && dataUrl.length <= 14 * 1024 * 1024;
+}
+
+function normalizeImages(images: ChatImage[]) {
+  return images
+    .map((image) => String(image.dataUrl || '').trim())
+    .filter(isSupportedImageDataUrl)
+    .slice(0, 5);
+}
+
+function buildOpenAIInput(message: string, images: string[] = []): string | ResponseInput {
+  if (images.length === 0) return message;
+
+  return [{
+    type: 'message',
+    role: 'user',
+    content: [
+      { type: 'input_text', text: message },
+      ...images.map((imageUrl) => ({
+        type: 'input_image' as const,
+        image_url: imageUrl,
+        detail: 'auto' as const,
+      })),
+    ],
+  }];
+}
+
+async function createOpenAIAnswerStream(message: string, images: string[], onDelta: (delta: string) => void) {
   const openai = getOpenAI();
   const stream = await openai.responses.create({
     model: getOpenAIChatModel(),
     instructions: getAnswerInstructions(),
     tools: [{ type: 'web_search' }],
     tool_choice: 'auto',
-    input: message,
+    input: buildOpenAIInput(message, images),
     max_output_tokens: 650,
     stream: true,
   });
@@ -293,24 +324,24 @@ function encodeChatStreamEvent(event: ChatStreamEvent) {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 }
 
-function createChatStream(message: string, originalMessage: string, history: ChatContextItem[]) {
+function createChatStream(message: string, originalMessage: string, history: ChatContextItem[], images: string[]) {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       let answer = '';
 
       try {
-        const stockAnswer = await createStockAnswer(originalMessage);
+        const stockAnswer = images.length === 0 ? await createStockAnswer(originalMessage) : '';
         if (stockAnswer) {
           controller.enqueue(encodeChatStreamEvent({ type: 'delta', delta: stockAnswer }));
           controller.enqueue(encodeChatStreamEvent({ type: 'done', answer: stockAnswer }));
           return;
         }
 
-        if (getChatProvider() === 'hermes-codex') {
+        if (getChatProvider() === 'hermes-codex' && images.length === 0) {
           answer = await createHermesCodexAnswer(message);
           controller.enqueue(encodeChatStreamEvent({ type: 'delta', delta: answer }));
         } else {
-          answer = await createOpenAIAnswerStream(message, (delta) => {
+          answer = await createOpenAIAnswerStream(message, images, (delta) => {
             controller.enqueue(encodeChatStreamEvent({ type: 'delta', delta }));
           });
         }
@@ -323,7 +354,7 @@ function createChatStream(message: string, originalMessage: string, history: Cha
 
         controller.enqueue(encodeChatStreamEvent({ type: 'done', answer }));
       } catch (err) {
-        const { error } = formatOpenAIError(err, '답변 생성', '답변 생성 서버 오류가 발생했습니다.');
+        const { error } = formatOpenAIError(err, images.length > 0 ? '이미지 답변 생성' : '답변 생성', '답변 생성 서버 오류가 발생했습니다.');
         controller.enqueue(encodeChatStreamEvent({ type: 'error', error }));
       } finally {
         controller.close();
@@ -337,13 +368,14 @@ export async function POST(request: Request) {
     const body = (await request.json()) as ChatRequest;
     const message = String(body.message || '').trim();
     const history = Array.isArray(body.history) ? body.history : [];
+    const images = normalizeImages(Array.isArray(body.images) ? body.images : []);
     if (!message) {
       return NextResponse.json({ error: '질문이 비어 있습니다.' }, { status: 400 });
     }
 
     if (body.stream) {
       const messageWithHistory = buildMessageWithHistory(message, history);
-      return new Response(createChatStream(messageWithHistory, message, history), {
+      return new Response(createChatStream(messageWithHistory, message, history, images), {
         headers: {
           'content-type': 'text/event-stream; charset=utf-8',
           'cache-control': 'no-store',
@@ -352,10 +384,10 @@ export async function POST(request: Request) {
     }
 
     const messageWithHistory = buildMessageWithHistory(message, history);
-    const stockAnswer = await createStockAnswer(message);
-    let answer = stockAnswer || (getChatProvider() === 'hermes-codex'
+    const stockAnswer = images.length === 0 ? await createStockAnswer(message) : '';
+    let answer = stockAnswer || (getChatProvider() === 'hermes-codex' && images.length === 0
       ? await createHermesCodexAnswer(messageWithHistory)
-      : await createOpenAIAnswer(messageWithHistory));
+      : await createOpenAIAnswer(messageWithHistory, images));
     answer += getReferenceLinks(message, history, answer);
 
     return NextResponse.json({ answer });

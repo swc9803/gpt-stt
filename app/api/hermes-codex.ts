@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 
 const DEFAULT_CODEX_MODEL = "gpt-5.5";
 const DEFAULT_TIMEOUT_MS = 90_000;
+const DEFAULT_MAX_TURNS = 3;
 const MAX_OUTPUT_BUFFER = 1024 * 1024;
 
 function envNumber(name: string, fallback: number) {
@@ -18,6 +19,7 @@ function cleanHermesOutput(stdout: string) {
 			const trimmed = line.trim();
 			if (/^Session ID:/i.test(trimmed)) return false;
 			if (/tirith security scanner/i.test(trimmed)) return false;
+			if (/reached maximum iterations/i.test(trimmed)) return false;
 			return true;
 		})
 		.join("\n")
@@ -52,7 +54,7 @@ export async function createHermesCodexAnswer(message: string) {
 	const model = process.env.HERMES_CODEX_MODEL || DEFAULT_CODEX_MODEL;
 	const toolsets = process.env.HERMES_CODEX_TOOLSETS || "safe";
 	const timeout = envNumber("HERMES_CODEX_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
-	const maxTurns = String(envNumber("HERMES_CODEX_MAX_TURNS", 1));
+	const maxTurns = String(envNumber("HERMES_CODEX_MAX_TURNS", DEFAULT_MAX_TURNS));
 
 	const args = [
 		"chat",

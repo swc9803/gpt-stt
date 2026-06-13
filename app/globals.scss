@@ -263,6 +263,81 @@ select {
   }
 }
 
+.attachmentRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.imageAttachButton {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f3f4f6;
+  color: #374151;
+  padding: 11px 13px;
+  font-size: 15px;
+  font-weight: 850;
+  cursor: pointer;
+  touch-action: manipulation;
+
+  input {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.imagePreviewList {
+  min-width: 0;
+  flex: 1 1 260px;
+  display: grid;
+  gap: 8px;
+}
+
+.imagePreview {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f9fafb;
+  padding: 7px;
+
+  img {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    object-fit: cover;
+    background: #e5e7eb;
+  }
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  button {
+    border: 0;
+    border-radius: 10px;
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-weight: 850;
+    cursor: pointer;
+  }
+}
+
 .micIcon {
   width: 44%;
   height: 44%;
@@ -580,6 +655,14 @@ select {
 
   .composerRow {
     grid-template-columns: minmax(0, 1fr) 88px;
+  }
+
+  .imagePreview {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+  }
+
+  .imagePreviewList {
+    flex-basis: 100%;
   }
 
   .smallMicButton,

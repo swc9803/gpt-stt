@@ -12,6 +12,7 @@ import {
 type Step = 'idle' | 'recording' | 'transcribing' | 'thinking' | 'speaking';
 type HistoryTurn = { question: string; answer: string; at: number };
 type HistorySession = { id: string; title: string; turns: HistoryTurn[]; updatedAt: number; pinned?: boolean };
+type SelectedImage = { name: string; dataUrl: string };
 type BrowserSpeechRecognitionEvent = {
   resultIndex: number;
   results: ArrayLike<{
@@ -88,12 +89,12 @@ function getBrowserSpeechRecognition() {
   return window.SpeechRecognition || window.webkitSpeechRecognition;
 }
 
-function shouldUseServerSpeechToText() {
-  return ENABLE_OPENAI_STT_FALLBACK;
+function isOpenAIQuotaErrorMessage(message: string) {
+  return message.includes('할당량') || message.includes('크레딧') || message.includes('quota') || message.includes('billing');
 }
 
 async function streamChatAnswer(
-  body: { message: string; history: { question?: string; answer?: string }[] },
+  body: { message: string; history: { question?: string; answer?: string }[]; images?: SelectedImage[] },
   onDelta: (delta: string, answer: string) => void,
 ) {
   const response = await fetch('/api/chat', {
@@ -151,6 +152,24 @@ function getSpeechText(text: string) {
     .trim();
 }
 
+function speakWithBrowserVoice(text: string) {
+  return new Promise<void>((resolve, reject) => {
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+      reject(new Error('브라우저 음성 읽기를 사용할 수 없습니다.'));
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ko-KR';
+    utterance.rate = 0.96;
+    utterance.pitch = 1;
+    utterance.onend = () => resolve();
+    utterance.onerror = () => reject(new Error('브라우저 음성 읽기에 실패했습니다.'));
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
 function getSafeHttpUrl(url: string) {
   try {
     const parsed = new URL(url);
@@ -199,6 +218,46 @@ function renderLinkedText(text: string) {
 
 function createSessionId() {
   return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('이미지를 읽지 못했습니다.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(dataUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('이미지 미리보기를 만들지 못했습니다.'));
+    image.src = dataUrl;
+  });
+}
+
+async function createImageDataUrl(file: File) {
+  const dataUrl = await readFileAsDataUrl(file);
+  if (typeof document === 'undefined') return dataUrl;
+
+  try {
+    const image = await loadImage(dataUrl);
+    const maxSize = 1280;
+    const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return dataUrl;
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL('image/jpeg', 0.8);
+  } catch {
+    return dataUrl;
+  }
 }
 
 function sortHistorySessions(sessions: HistorySession[]) {
@@ -340,6 +399,7 @@ export default function VoiceAssistant() {
   const [renamingHistoryTitle, setRenamingHistoryTitle] = useState('');
   const [autoStopReady, setAutoStopReady] = useState(false);
   const [typedQuestion, setTypedQuestion] = useState('');
+  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
   const [serverTtsEnabled, setServerTtsEnabled] = useState(true);
   const [autoReadEnabled, setAutoReadEnabled] = useState(true);
   const [ttsVoices, setTtsVoices] = useState<ElevenLabsVoiceOption[]>(ELEVENLABS_VOICE_OPTIONS);
@@ -426,7 +486,10 @@ export default function VoiceAssistant() {
   function toggleAutoRead(enabled: boolean) {
     setAutoReadEnabled(enabled);
     window.localStorage.setItem(AUTO_READ_KEY, String(enabled));
-    if (!enabled) audioRef.current?.pause();
+    if (!enabled) {
+      audioRef.current?.pause();
+      window.speechSynthesis?.cancel();
+    }
   }
 
   function clearRecognitionFinishTimer() {
@@ -589,18 +652,20 @@ export default function VoiceAssistant() {
     streamRef.current = null;
   }
 
-  async function answerFromText(text: string) {
+  async function answerFromText(text: string, images: SelectedImage[] = []) {
     const cleanText = text.trim();
-    if (!cleanText) throw new Error('말소리를 인식하지 못했습니다. 다시 한 번 또렷하게 말씀해 주세요.');
-    if (handleVoiceCommand(cleanText)) return;
+    const message = cleanText || (images.length > 0 ? '이 이미지를 보고 설명해 주세요.' : '');
+    if (!message) throw new Error('말소리를 인식하지 못했습니다. 다시 한 번 또렷하게 말씀해 주세요.');
+    if (images.length === 0 && handleVoiceCommand(message)) return;
 
-    setTranscript(cleanText);
+    setTranscript(images.length > 0 ? `${message}\n\n첨부 이미지: ${images.map((image) => image.name).join(', ')}` : message);
     setAnswer('');
     setStep('thinking');
-    const context = getContextForMessage(cleanText);
+    const context = getContextForMessage(message);
     const reply = await streamChatAnswer({
-      message: cleanText,
+      message,
       history: context.turns,
+      images,
     }, (_delta, nextAnswer) => {
       setAnswer(nextAnswer);
     });
@@ -609,7 +674,7 @@ export default function VoiceAssistant() {
 
     setAnswer(finalReply);
     lastAnswerRef.current = finalReply;
-    addHistory(cleanText, finalReply, context.sessionId);
+    addHistory(images.length > 0 ? `${message} [이미지 첨부]` : message, finalReply, context.sessionId);
     if (autoReadEnabled) void speak(finalReply);
   }
 
@@ -625,6 +690,7 @@ export default function VoiceAssistant() {
 
     if (/^(그만|멈춰|중지|읽기그만|말그만)$/u.test(command)) {
       audioRef.current?.pause();
+      window.speechSynthesis?.cancel();
       setTranscript(text);
       setStep('idle');
       setError('');
@@ -777,9 +843,14 @@ export default function VoiceAssistant() {
     setStep('speaking');
     setError('');
     audioRef.current?.pause();
+    window.speechSynthesis?.cancel();
 
     if (!serverTtsEnabled) {
-      setError('ElevenLabs TTS가 꺼져 있습니다.');
+      try {
+        await speakWithBrowserVoice(speechText);
+      } catch {
+        setError('음성 읽기를 사용할 수 없어 답변은 텍스트로 표시했습니다.');
+      }
       setStep('idle');
       return;
     }
@@ -809,7 +880,13 @@ export default function VoiceAssistant() {
       };
       await audio.play();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ElevenLabs 음성 생성에 실패했습니다.');
+      const message = err instanceof Error ? err.message : 'ElevenLabs 음성 생성에 실패했습니다.';
+      try {
+        await speakWithBrowserVoice(speechText);
+        setError('ElevenLabs 크레딧 또는 한도 문제로 브라우저 음성으로 읽었습니다.');
+      } catch {
+        setError(`${message} 답변은 텍스트로 표시했습니다.`);
+      }
       setStep('idle');
     }
   }
@@ -819,17 +896,18 @@ export default function VoiceAssistant() {
     setTranscript('');
     setAnswer('');
     audioRef.current?.pause();
+    window.speechSynthesis?.cancel();
     clearRecognitionFinishTimer();
     recognitionFinishingRef.current = false;
 
-    const SpeechRecognitionCtor = shouldUseServerSpeechToText() ? undefined : getBrowserSpeechRecognition();
+    const SpeechRecognitionCtor = getBrowserSpeechRecognition();
     if (SpeechRecognitionCtor) {
       startBrowserSpeechRecognition(SpeechRecognitionCtor);
       return;
     }
 
     if (!ENABLE_OPENAI_STT_FALLBACK) {
-      setError('이 브라우저는 브라우저 음성 인식을 지원하지 않습니다. Chrome 최신 버전으로 열어 주세요.');
+      setError('이 브라우저는 무료 브라우저 음성 인식을 지원하지 않습니다. 직접 입력으로 질문해 주세요.');
       return;
     }
 
@@ -967,7 +1045,13 @@ export default function VoiceAssistant() {
 
       const transcribeResponse = await fetch('/api/transcribe', { method: 'POST', body: form });
       const transcribeData = await transcribeResponse.json().catch(() => ({}));
-      if (!transcribeResponse.ok) throw new Error(transcribeData?.error || '음성 인식에 실패했습니다.');
+      if (!transcribeResponse.ok) {
+        const message = String(transcribeData?.error || '음성 인식에 실패했습니다.');
+        if (isOpenAIQuotaErrorMessage(message)) {
+          throw new Error('OpenAI 음성 인식 크레딧이 부족합니다. 이 브라우저에서는 무료 브라우저 음성 인식도 사용할 수 없어, 질문을 글자로 입력해 주세요.');
+        }
+        throw new Error(message);
+      }
 
       const text = String(transcribeData.text || '').trim();
       await answerFromText(text);
@@ -986,17 +1070,53 @@ export default function VoiceAssistant() {
     else if (step === 'idle' || step === 'speaking') void startRecording();
   }
 
+  async function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (files.length === 0) return;
+    if (files.some((file) => !file.type.startsWith('image/'))) {
+      setError('이미지 파일만 업로드할 수 있습니다.');
+      return;
+    }
+    if (files.some((file) => file.size > 12 * 1024 * 1024)) {
+      setError('이미지 파일은 각각 12MB 이하만 업로드할 수 있습니다.');
+      return;
+    }
+    if (selectedImages.length + files.length > 5) {
+      setError('이미지는 최대 5장까지 한 번에 질문할 수 있습니다.');
+      return;
+    }
+
+    setError('');
+    try {
+      const nextImages = await Promise.all(files.map(async (file, index) => ({
+        name: file.name || `image-${Date.now()}-${index + 1}.jpg`,
+        dataUrl: await createImageDataUrl(file),
+      })));
+      setSelectedImages((current) => [...current, ...nextImages].slice(0, 5));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '이미지를 불러오지 못했습니다.');
+    }
+  }
+
+  function removeSelectedImage(index: number) {
+    setSelectedImages((current) => current.filter((_, currentIndex) => currentIndex !== index));
+  }
+
   function submitTypedQuestion(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = typedQuestion.trim();
-    if (!text || !['idle', 'speaking'].includes(step)) return;
+    const images = selectedImages;
+    if ((!text && images.length === 0) || !['idle', 'speaking'].includes(step)) return;
 
     setError('');
     setAnswer('');
     setTypedQuestion('');
+    setSelectedImages([]);
     audioRef.current?.pause();
+    window.speechSynthesis?.cancel();
 
-    void answerFromText(text).catch((err) => {
+    void answerFromText(text, images).catch((err) => {
       setError(err instanceof Error ? err.message : '처리 중 문제가 발생했습니다.');
       setStep('idle');
     });
@@ -1035,7 +1155,7 @@ export default function VoiceAssistant() {
                   rows={3}
                   disabled={!['idle', 'speaking'].includes(step)}
                 />
-                <button className="insideSubmitButton" type="submit" disabled={!typedQuestion.trim() || !['idle', 'speaking'].includes(step)}>
+                <button className="insideSubmitButton" type="submit" disabled={(!typedQuestion.trim() && selectedImages.length === 0) || !['idle', 'speaking'].includes(step)}>
                   질문하기
                 </button>
               </div>
@@ -1057,6 +1177,29 @@ export default function VoiceAssistant() {
                   </svg>
                 )}
               </button>
+            </div>
+            <div className="attachmentRow">
+              <label className="imageAttachButton">
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageChange}
+                  disabled={!['idle', 'speaking'].includes(step)}
+                />
+                이미지 추가
+              </label>
+              {selectedImages.length > 0 ? (
+                <div className="imagePreviewList">
+                  {selectedImages.map((image, index) => (
+                    <div className="imagePreview" key={`${image.name}-${index}`}>
+                      <img src={image.dataUrl} alt="" />
+                      <span>{image.name}</span>
+                      <button type="button" onClick={() => removeSelectedImage(index)}>삭제</button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
             {statusText(step, autoStopReady) ? <div className="status compactStatus" role="status">{statusText(step, autoStopReady)}</div> : null}
             {['transcribing', 'thinking', 'speaking'].includes(step) ? <div className="loader" aria-hidden="true" /> : null}
@@ -1080,7 +1223,6 @@ export default function VoiceAssistant() {
                 type="checkbox"
                 checked={autoReadEnabled}
                 onChange={(event) => toggleAutoRead(event.target.checked)}
-                disabled={!serverTtsEnabled}
               />
               <span className="toggleTrack" aria-hidden="true">
                 <span className="toggleThumb" />
