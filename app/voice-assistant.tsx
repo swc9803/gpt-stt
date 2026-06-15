@@ -419,6 +419,7 @@ export default function VoiceAssistant() {
   const recognitionFinishTimerRef = useRef<number | null>(null);
   const recognitionFinishingRef = useRef(false);
   const sessionIdRef = useRef(createSessionId());
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(HISTORY_KEY);
@@ -1179,6 +1180,28 @@ export default function VoiceAssistant() {
               </button>
             </div>
             <div className="attachmentRow">
+              <button
+                className="cameraAttachButton"
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={!['idle', 'speaking'].includes(step)}
+                aria-label="카메라로 사진 촬영"
+                title="카메라로 사진 촬영"
+              >
+                <svg className="cameraIcon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 8a2 2 0 0 1 2-2h2l1.4-2h5.2L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" />
+                  <path d="M12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+                </svg>
+              </button>
+              <input
+                ref={cameraInputRef}
+                className="hiddenFileInput"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleImageChange}
+                disabled={!['idle', 'speaking'].includes(step)}
+              />
               <label className="imageAttachButton">
                 <input
                   type="file"
