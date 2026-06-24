@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3010",
+    "dev": "next dev -H 0.0.0.0 -p 3010",
     "build": "next build",
-    "start": "next start -p 3010",
+    "start": "next start -H 0.0.0.0 -p 3010",
     "lint": "next lint",
     "models": "node scripts/list-models.mjs",
-    "deploy:cloudrun": "gcloud builds submit --config cloudbuild.yaml && gcloud run services add-iam-policy-binding gpt-stt --region asia-northeast3 --member=allUsers --role=roles/run.invoker --quiet",
-    "deploy:firebase": "firebase deploy --only hosting"
+    "startup:install": "powershell.exe -ExecutionPolicy Bypass -File scripts/register-startup-task.ps1",
+    "startup:remove": "powershell.exe -ExecutionPolicy Bypass -File scripts/unregister-startup-task.ps1"
   },
   "dependencies": {
     "@types/node": "latest",

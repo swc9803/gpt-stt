@@ -1,19 +1,86 @@
-# todo
+# gpt-stt
 
-## Speech to Text
+한국어 음성 질문/답변 PWA입니다. 서버는 Google Cloud에 올리지 않고, 이 컴퓨터에서 터미널을 열어둔 Next.js 프로세스가 직접 처리합니다.
+
+## 실행
+
+```bash
+npm install
+npm run dev
+```
+
+기본 주소:
+
+```text
+http://localhost:3010
+```
+
+`npm run dev`는 `0.0.0.0:3010`으로 열리므로 같은 Wi-Fi의 다른 기기에서도 접속할 수 있습니다. Windows에서 PC의 IPv4 주소를 확인한 뒤 휴대폰에서 아래처럼 엽니다.
+
+```powershell
+ipconfig
+```
+
+```text
+http://PC의-IPv4-주소:3010
+```
+
+서버를 끄려면 `npm run dev`를 실행한 터미널에서 `Ctrl+C`를 누르면 됩니다.
+
+## Windows 자동 시작
+
+Windows 로그인 후 15초 뒤에 PowerShell 창을 열고 서버를 자동으로 시작하려면 한 번만 등록합니다.
+
+```powershell
+npm run startup:install
+```
+
+등록되는 작업 이름은 `gpt-stt-local-server`입니다. 이후 컴퓨터를 켜고 로그인하면 터미널이 열리면서 `npm run dev`가 실행됩니다.
+
+자동 시작을 끄려면:
+
+```powershell
+npm run startup:remove
+```
+
+## Hermes/Codex 채팅
+
+채팅 답변은 로컬 서버가 `hermes` CLI를 실행해서 Codex로 보낼 수 있습니다. 이 방식은 Google Cloud secret이나 Cloud Run이 필요 없고, 이 컴퓨터의 Hermes 인증을 그대로 사용합니다.
+
+처음 한 번:
+
+```bash
+hermes auth add openai-codex
+```
+
+`.env.local`:
+
+```bash
+CHAT_PROVIDER=hermes-codex
+HERMES_CODEX_MODEL=gpt-5.5
+# 필요할 때만 지정
+# HERMES_BIN=hermes
+# HERMES_CODEX_TIMEOUT_MS=90000
+# HERMES_CODEX_MAX_TURNS=3
+```
+
+이 모드는 `/api/chat`에만 적용됩니다. 음성 전사 fallback은 여전히 OpenAI API key를 사용합니다.
+
+## Speech To Text
 
 iPhone/iPad에서는 브라우저 내장 음성 인식이 권한 허용 후에도 실패할 수 있어, 서버 전사 fallback을 켜는 것을 권장합니다.
 
 ```bash
+OPENAI_API_KEY=sk-...
 NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK=true
 OPENAI_STT_MODEL=gpt-4o-mini-transcribe
 ```
 
-이 값이 켜져 있으면 iOS 계열 브라우저에서는 `SpeechRecognition` 대신 마이크 녹음 후 `/api/transcribe` 서버 전사를 사용합니다.
+OpenAI STT 크레딧이 없으면 `NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK`을 끄거나 제거합니다.
 
 ## Server TTS
 
-TTS는 ElevenLabs만 사용합니다.
+TTS는 ElevenLabs를 사용합니다.
 
 ```bash
 ELEVENLABS_API_KEY=your_api_key
@@ -22,29 +89,14 @@ ELEVENLABS_MODEL_ID=eleven_v3
 ELEVENLABS_OUTPUT_FORMAT=mp3_44100_128
 ```
 
-목소리는 결제 없이 API에서 성공한 아래 음성만 사용합니다.
+목소리 옵션:
 
 - `EXAVITQu4vr4xnSDxMaL`: Sarah
 - `iP95p4xoKVk53GoZ742B`: Chris
 
-모델은 속도/품질을 정하고, 남성/여성 같은 목소리 성격은 `ELEVENLABS_VOICE_ID`가 정합니다.
-
-무료 플랜 포함 모델:
-
-- `eleven_flash_v2_5`: 빠른 대화용
-- `eleven_turbo_v2_5`: 속도와 품질 균형
-- `eleven_multilingual_v2`: 자연스러운 한국어 음성
-- `eleven_v3`: 표현력 높은 음성, 기본값
-
-선택 조정값:
-
-```bash
-ELEVENLABS_LANGUAGE_CODE=ko
-ELEVENLABS_STABILITY=0.42
-ELEVENLABS_SIMILARITY_BOOST=0.82
-ELEVENLABS_STYLE=0.18
-ELEVENLABS_SPEED=0.94
-ELEVENLABS_SPEAKER_BOOST=true
-```
-
 `ENABLE_SERVER_TTS=false`를 설정하면 ElevenLabs 음성 재생이 꺼집니다. 기본값은 켜짐입니다.
+
+## 참고
+
+- 이 repo의 Google Cloud Run/Firebase Hosting 배포 설정은 제거했습니다.
+- 휴대폰에서 마이크/PWA가 브라우저 정책 때문에 막히면 HTTPS가 필요할 수 있습니다. 그 경우에도 앱 서버는 이 컴퓨터에서 계속 열어두고, 별도 터널 도구만 `http://localhost:3010`으로 연결하면 됩니다.
