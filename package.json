@@ -8,10 +8,11 @@
     "start": "next start -H 0.0.0.0 -p 3010",
     "lint": "next lint",
     "models": "node scripts/list-models.mjs",
-    "startup:install": "powershell.exe -ExecutionPolicy Bypass -File scripts/register-startup-task.ps1",
-    "startup:remove": "powershell.exe -ExecutionPolicy Bypass -File scripts/unregister-startup-task.ps1",
+    "startup:install": "bash scripts/install-macos-launchagent.sh",
+    "startup:remove": "bash scripts/uninstall-macos-launchagent.sh",
     "startup:mac:install": "bash scripts/install-macos-launchagent.sh",
-    "startup:mac:remove": "bash scripts/uninstall-macos-launchagent.sh"
+    "startup:mac:remove": "bash scripts/uninstall-macos-launchagent.sh",
+    "startup:remove:win": "powershell.exe -ExecutionPolicy Bypass -File scripts/unregister-startup-task.ps1"
   },
   "dependencies": {
     "@types/node": "latest",

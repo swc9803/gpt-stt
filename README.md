@@ -21,13 +21,13 @@ http://localhost:3010
 
 ## macOS 백그라운드 자동 시작
 
-Mac 로그인 후 백그라운드에서 서버를 자동으로 시작하려면 한 번만 등록합니다.
+회사 Mac에서 로그인할 때 로컬 서버를 백그라운드로 자동 시작하려면 한 번만 등록합니다.
 
 ```bash
-npm run startup:mac:install
+npm run startup:install
 ```
 
-등록되는 LaunchAgent 이름은 `com.user.gpt-stt-local-server`입니다. 이후 Mac에 로그인하면 Terminal 창 없이 `npm run dev`가 백그라운드에서 실행됩니다.
+등록되는 LaunchAgent 이름은 `com.user.gpt-stt-local-server`입니다. 이후 Mac에 로그인하면 Terminal 창 없이 `npm run dev`가 백그라운드에서 실행되고 `http://localhost:3010`으로 열립니다.
 
 로그:
 
@@ -39,23 +39,13 @@ npm run startup:mac:install
 자동 시작을 끄려면:
 
 ```bash
-npm run startup:mac:remove
-```
-
-## Windows 자동 시작
-
-Windows 로그인 후 15초 뒤에 PowerShell 창을 열고 서버를 자동으로 시작하려면 한 번만 등록합니다.
-
-```powershell
-npm run startup:install
-```
-
-등록되는 작업 이름은 `gpt-stt-local-server`입니다. 이후 컴퓨터를 켜고 로그인하면 터미널이 열리면서 `npm run dev`가 실행됩니다.
-
-자동 시작을 끄려면:
-
-```powershell
 npm run startup:remove
+```
+
+집 Windows에서는 자동 시작을 등록하지 않습니다. 예전에 Windows 작업 스케줄러에 등록해 둔 작업이 있으면 Windows에서 아래 명령으로 한 번 지웁니다.
+
+```powershell
+npm run startup:remove:win
 ```
 
 ## Hermes/Codex 채팅
