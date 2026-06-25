@@ -9,7 +9,9 @@
     "lint": "next lint",
     "models": "node scripts/list-models.mjs",
     "startup:install": "powershell.exe -ExecutionPolicy Bypass -File scripts/register-startup-task.ps1",
-    "startup:remove": "powershell.exe -ExecutionPolicy Bypass -File scripts/unregister-startup-task.ps1"
+    "startup:remove": "powershell.exe -ExecutionPolicy Bypass -File scripts/unregister-startup-task.ps1",
+    "startup:mac:install": "bash scripts/install-macos-launchagent.sh",
+    "startup:mac:remove": "bash scripts/uninstall-macos-launchagent.sh"
   },
   "dependencies": {
     "@types/node": "latest",

@@ -1,6 +1,6 @@
 # gpt-stt
 
-한국어 음성 질문/답변 PWA입니다. 서버는 Google Cloud에 올리지 않고, 이 컴퓨터에서 터미널을 열어둔 Next.js 프로세스가 직접 처리합니다.
+한국어 음성 질문/답변 PWA입니다. 서버는 Google Cloud에 올리지 않고, 이 컴퓨터에서 실행되는 Next.js 프로세스가 직접 처리합니다.
 
 ## 실행
 
@@ -15,17 +15,32 @@ npm run dev
 http://localhost:3010
 ```
 
-`npm run dev`는 `0.0.0.0:3010`으로 열리므로 같은 Wi-Fi의 다른 기기에서도 접속할 수 있습니다. Windows에서 PC의 IPv4 주소를 확인한 뒤 휴대폰에서 아래처럼 엽니다.
-
-```powershell
-ipconfig
-```
-
-```text
-http://PC의-IPv4-주소:3010
-```
+`npm run dev`는 `0.0.0.0:3010`으로 열리므로 같은 Wi-Fi의 다른 기기에서도 접속할 수 있습니다.
 
 서버를 끄려면 `npm run dev`를 실행한 터미널에서 `Ctrl+C`를 누르면 됩니다.
+
+## macOS 백그라운드 자동 시작
+
+Mac 로그인 후 백그라운드에서 서버를 자동으로 시작하려면 한 번만 등록합니다.
+
+```bash
+npm run startup:mac:install
+```
+
+등록되는 LaunchAgent 이름은 `com.user.gpt-stt-local-server`입니다. 이후 Mac에 로그인하면 Terminal 창 없이 `npm run dev`가 백그라운드에서 실행됩니다.
+
+로그:
+
+```text
+.local-server/launchd.out.log
+.local-server/launchd.err.log
+```
+
+자동 시작을 끄려면:
+
+```bash
+npm run startup:mac:remove
+```
 
 ## Windows 자동 시작
 

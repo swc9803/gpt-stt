@@ -8,6 +8,7 @@ out
 dist
 coverage
 .turbo
+.local-server
 *.tsbuildinfo
 .next-dev*.log
 firebase-debug.log*
