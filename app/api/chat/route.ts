@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import type { ResponseInput } from 'openai/resources/responses/responses';
-import { createHermesCodexAnswer } from '../hermes-codex';
 import { formatOpenAIError } from '../openai-errors';
 import { getOpenAI } from '../openai';
 
@@ -263,6 +262,11 @@ async function createOpenAIAnswer(message: string, images: string[] = []) {
   return response.output_text.trim();
 }
 
+async function createLocalHermesCodexAnswer(message: string) {
+  const { createHermesCodexAnswer } = await import('../hermes-codex');
+  return createHermesCodexAnswer(message);
+}
+
 function isSupportedImageDataUrl(dataUrl: string) {
   return /^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(dataUrl)
     && dataUrl.length <= 14 * 1024 * 1024;
@@ -338,7 +342,7 @@ function createChatStream(message: string, originalMessage: string, history: Cha
         }
 
         if (getChatProvider() === 'hermes-codex' && images.length === 0) {
-          answer = await createHermesCodexAnswer(message);
+          answer = await createLocalHermesCodexAnswer(message);
           controller.enqueue(encodeChatStreamEvent({ type: 'delta', delta: answer }));
         } else {
           answer = await createOpenAIAnswerStream(message, images, (delta) => {
@@ -386,7 +390,7 @@ export async function POST(request: Request) {
     const messageWithHistory = buildMessageWithHistory(message, history);
     const stockAnswer = images.length === 0 ? await createStockAnswer(message) : '';
     let answer = stockAnswer || (getChatProvider() === 'hermes-codex' && images.length === 0
-      ? await createHermesCodexAnswer(messageWithHistory)
+      ? await createLocalHermesCodexAnswer(messageWithHistory)
       : await createOpenAIAnswer(messageWithHistory, images));
     answer += getReferenceLinks(message, history, answer);
 

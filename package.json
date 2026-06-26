@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3010",
     "build": "next build",
-    "start": "next start -H 0.0.0.0 -p 3010",
+    "start": "next start -H 0.0.0.0 -p ${PORT:-3010}",
+    "deploy": "npx vercel --prod",
     "lint": "next lint",
     "models": "node scripts/list-models.mjs",
     "startup:install": "bash scripts/install-macos-launchagent.sh",

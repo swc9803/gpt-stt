@@ -1,6 +1,6 @@
 # gpt-stt
 
-한국어 음성 질문/답변 PWA입니다. 서버는 Google Cloud에 올리지 않고, 이 컴퓨터에서 실행되는 Next.js 프로세스가 직접 처리합니다.
+한국어 음성 질문/답변 PWA입니다. Vercel에 배포하거나, 개발 중에는 이 컴퓨터에서 Next.js 프로세스로 실행할 수 있습니다.
 
 ## 실행
 
@@ -18,6 +18,42 @@ http://localhost:3010
 `npm run dev`는 `0.0.0.0:3010`으로 열리므로 같은 Wi-Fi의 다른 기기에서도 접속할 수 있습니다.
 
 서버를 끄려면 `npm run dev`를 실행한 터미널에서 `Ctrl+C`를 누르면 됩니다.
+
+## Vercel 배포
+
+Next.js API route가 필요하므로 정적 호스팅이 아니라 Next.js 서버 함수를 지원하는 Vercel로 배포합니다.
+
+처음 한 번 Vercel 계정에 로그인한 뒤 프로젝트를 연결합니다.
+
+```bash
+npx vercel
+```
+
+Vercel 프로젝트 환경변수에 아래 값을 등록합니다.
+
+```text
+CHAT_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+OPENAI_CHAT_MODEL=gpt-4.1-mini
+NEXT_PUBLIC_ENABLE_OPENAI_STT_FALLBACK=true
+OPENAI_STT_MODEL=gpt-4o-mini-transcribe
+ELEVENLABS_API_KEY=your_api_key
+ELEVENLABS_VOICE_ID=EXAVITQu4vr4xnSDxMaL
+ELEVENLABS_MODEL_ID=eleven_v3
+ELEVENLABS_OUTPUT_FORMAT=mp3_44100_128
+```
+
+이후 배포:
+
+```bash
+npm run deploy
+```
+
+주의:
+
+- Vercel 배포에서는 `CHAT_PROVIDER=openai`를 사용합니다. `hermes-codex`는 이 컴퓨터의 Hermes CLI 인증에 의존하므로 로컬 실행 전용입니다.
+- 호스팅은 Vercel Hobby 무료 한도 안에서 쓸 수 있지만, OpenAI와 ElevenLabs API 사용료는 각 서비스에서 별도로 발생할 수 있습니다.
+- 공개 URL은 `npm run deploy` 완료 후 Vercel CLI 출력에서 확인합니다.
 
 ## macOS 백그라운드 자동 시작
 

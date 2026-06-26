@@ -9,6 +9,8 @@ dist
 coverage
 .turbo
 .local-server
+.npm-cache
+.vercel
 *.tsbuildinfo
 .next-dev*.log
 firebase-debug.log*
